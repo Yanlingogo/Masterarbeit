@@ -16,7 +16,7 @@ function [mpc] = opf_initialization(mpc,restriction_level)
     mpc_opf = mpc;
     id_gen = mpc.gen(:,GEN_BUS);
     Ngen = numel(id_gen);
-    idx_pq = mpc.bus(:,BUS_TYPE)==1;
+    idx_pq = find(mpc.bus(:,BUS_TYPE)==1);
 
     if strcmp(restriction_level, 'uniform')  
         mpc_opf.gencost(:,COST:COST+1) = [1.0, 0.0];
@@ -47,8 +47,8 @@ function [mpc] = opf_initialization(mpc,restriction_level)
     mpc_opf.branch(:,RATE_B) = mpc_opf.branch(:,RATE_B) * (1-restriction_level);
     mpc_opf.branch(:,RATE_C) = mpc_opf.branch(:,RATE_C) * (1-restriction_level);
   
-    %mpopt = mpoption('opf.ac.solver', 'IPOPT', 'verbose', 0);
-    mpopt = mpoption('verbose', 0);
+    mpopt = mpoption('mips.costtol',1e-8, 'verbose', 0);
+    %mpopt = mpoption('verbose', 0);
     result_opf = runopf(mpc_opf,mpopt);
 
     if result_opf.success ~=1

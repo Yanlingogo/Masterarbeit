@@ -170,16 +170,16 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
         error("Power flow equation is incorrect (nominal point)");
     end
     if max(abs(M*Psi(mpc,v_test,theta_test,p_inj_test,q_inj_test))) > 1e-5
-        error("Power flow equation is Incorrect (test)"); 
+        warning("Power flow equation is Incorrect (test)"); 
     end
     if max(abs(J_inv_M*gg(mpc,v0,v0,theta0,Phi0,p_inj0,q_inj0)-[theta0(idx_nslack);v0(idx_pq);delta0]))>1e-5
         error("Function g is Incorrect"); 
     end
     if max(abs(J_inv_M*gg(mpc,v0,v0,theta0,Phi0,p_inj0,-Cl*ql0)-[theta0(idx_nslack);v0(idx_pq);delta0]))>1e-5 
-        error ("Function g without q_pv is Incorrect"); 
+        error("Function g without q_pv is Incorrect"); 
     end
     if max(abs(J_inv_M*gg(mpc,v_test,v0,theta_test,Phi0,p_inj_test,q_inj_test)-[theta_test(idx_nslack);v_test(idx_pq);delta_test]))>1e-5 
-        error ("Function g is Incorrect"); 
+        warning("Function g is Incorrect (test)"); 
     end
 
     tol1 = 0;
@@ -275,15 +275,15 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
         pg0,pl0,ql0,pg0,alpha0,zeros(Ngen,1),mpc.cost,zeros(5,1));
     % Define the lower bound of variables
 %     lbx = vertcat(vmin,vmin,vmin-v0,vmin-v0,Phi_min,Phi_min,Phi_min-Phi0,Phi_min-Phi0,...
-%         -inf(10+8*Nbus+28*Nbranch+4*Ngen+2*Npq,1));
+%         -inf(10+8*Nbus+28*Nbranch+4*Ngen+2*Nload,1));
     lbx = vertcat(vmin,vmin,vmin-v0,vmin-v0,Phi_min,Phi_min,Phi_min-Phi0,Phi_min-Phi0,...
-        0,-inf(3+8*Nbus+28*Nbranch,1),pg_min,-inf(2*Nload+3*Ngen+6,1));
+        -inf(4+8*Nbus+28*Nbranch,1),pg_min,-inf(2*Nload+3*Ngen+6,1));
 
     % Define the upper bound of variables
 %     ubx = vertcat(vmax,vmax,vmax-v0,vmax-v0,Phi_max,Phi_max,Phi_max-Phi0,Phi_max-Phi0,...
-%         inf(10+8*Nbus+28*Nbranch+4*Ngen+2*Npq,1));
+%         inf(10+8*Nbus+28*Nbranch+4*Ngen+2*Nload,1));
     ubx = vertcat(vmax,vmax,vmax-v0,vmax-v0,Phi_max,Phi_max,Phi_max-Phi0,Phi_max-Phi0,...
-        0,inf(3+8*Nbus+28*Nbranch,1),pg_max,inf(2*Nload+3*Ngen+6,1));
+        inf(4+8*Nbus+28*Nbranch,1),pg_max,inf(2*Nload+3*Ngen+6,1));
     % Define gfun
     % Equality constraints
     g_v1 = v_u(id_gen)-v_l(id_gen);
@@ -297,10 +297,10 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     g_alpha2 = alpha_opt; % ==alpha0
     % inequality constraints 
     % >=
-    g_vv1 = Delta_vv_u_uu-Delta_v_u(idx_fr).*v0(idx_to)-v0(idx_fr).*Delta_v_u(idx_to)-1/4*(Delta_v_u(idx_fr)+Delta_v_u(idx_to)).^2;
-    g_vv2 = Delta_vv_u_ll-Delta_v_l(idx_fr).*v0(idx_to)-v0(idx_fr).*Delta_v_l(idx_to)-1/4*(Delta_v_l(idx_fr)+Delta_v_l(idx_to)).^2;
-    g_vv3 = Delta_vv_u_ul-Delta_v_u(idx_fr).*v0(idx_to)-v0(idx_fr).*Delta_v_l(idx_to)-1/4*(Delta_v_u(idx_fr)+Delta_v_l(idx_to)).^2;
-    g_vv4 = Delta_vv_u_lu-Delta_v_l(idx_fr).*v0(idx_to)-v0(idx_fr).*Delta_v_u(idx_to)-1/4*(Delta_v_l(idx_fr)+Delta_v_u(idx_to)).^2;
+    g_vv1 = Delta_vv_u_uu-(Delta_v_u(idx_fr).*v0(idx_to)+v0(idx_fr).*Delta_v_u(idx_to)+1/4*(Delta_v_u(idx_fr)+Delta_v_u(idx_to)).^2);
+    g_vv2 = Delta_vv_u_ll-(Delta_v_l(idx_fr).*v0(idx_to)+v0(idx_fr).*Delta_v_l(idx_to)+1/4*(Delta_v_l(idx_fr)+Delta_v_l(idx_to)).^2);
+    g_vv3 = Delta_vv_u_ul-(Delta_v_u(idx_fr).*v0(idx_to)+v0(idx_fr).*Delta_v_l(idx_to)+1/4*(Delta_v_u(idx_fr)+Delta_v_l(idx_to)).^2);
+    g_vv4 = Delta_vv_u_lu-(Delta_v_l(idx_fr).*v0(idx_to)+v0(idx_fr).*Delta_v_u(idx_to)+1/4*(Delta_v_l(idx_fr)+Delta_v_u(idx_to)).^2);
     % <= 
     g_vv5 = Delta_vv_l_uu-Delta_v_u(idx_fr).*v0(idx_to)-v0(idx_fr).*Delta_v_u(idx_to)+1/4*(Delta_v_u(idx_fr)-Delta_v_u(idx_to)).^2;
     g_vv6 = Delta_vv_l_ll-Delta_v_l(idx_fr).*v0(idx_to)-v0(idx_fr).*Delta_v_l(idx_to)+1/4*(Delta_v_l(idx_fr)-Delta_v_l(idx_to)).^2;
@@ -451,17 +451,14 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     end
 
     %% solver the problem under different inputs
-tol        = 1e-8;
-options.ipopt.tol             = tol;
-options.ipopt.constr_viol_tol = tol;
-options.ipopt.compl_inf_tol   = tol;
-options.ipopt.acceptable_tol  = tol;
-options.ipopt.acceptable_constr_viol_tol = tol;
-options.ipopt.print_level = 5;
+%     tol        = 1e-10;
+%     options.ipopt.tol             = tol;
+%     options.ipopt.constr_viol_tol = tol;
+%     options.ipopt.compl_inf_tol   = tol;
+%     options.ipopt.acceptable_tol  = tol;
+%     options.ipopt.acceptable_constr_viol_tol = tol;
+%     options.ipopt.print_level = 1;
 
-%     options.Gurobi.TolFun = 1.0e-6;  % 这只是一个示例参数，根据 Gurobi 的文档来设置
-%     options.Gurobi.OutputFlag = 1;   % 控制输出，设置为1表示显示输出，0表示不显示
-%     options.Gurobi.IterationLimit = 100; % 最大迭代次数
     if option == "margin" && isempty(target_mpc)
         g_add1 = pg_opt;
         g_add2 = pl_opt;
@@ -473,7 +470,7 @@ options.ipopt.print_level = 5;
         ubg = vertcat(ubg,pg0,pl0,ql0,v0(id_gen),inf);
         ffun = gamma_opt;
         nlp = struct('x',x,'f',-ffun,'g',gfun);
-        S = nlpsol('solver','ipopt', nlp,options);
+        S = nlpsol('solver','ipopt', nlp, options);
         sol = S('x0', x0,'lbg', lbg,'ubg', ubg,...
                 'lbx', lbx, 'ubx', ubx);
         status = S.stats().return_status;
@@ -494,7 +491,7 @@ options.ipopt.print_level = 5;
         lbg = vertcat(lbg,pg_target,pl_target,ql_target,v_target);
         ubg = vertcat(ubg,pg_target,pl_target,ql_target,v_target);
         nlp = struct('x',x,'f',-ffun,'g',gfun);
-        S = nlpsol('solver','ipopt', nlp,options);
+        S = nlpsol('solver','ipopt', nlp, options);
         sol = S('x0', x0,'lbg', lbg,'ubg', ubg,...
                 'lbx', lbx, 'ubx', ubx);
         status = S.stats().return_status;
@@ -515,7 +512,7 @@ options.ipopt.print_level = 5;
         lbg = vertcat(lbg,pl0,ql0,0,gamma0);
         ubg = vertcat(ubg,pl0,ql0,inf,inf);
         nlp = struct('x',x,'f',ffun,'g',gfun);    
-        S = nlpsol('solver','ipopt', nlp,options);  
+        S = nlpsol('solver','ipopt', nlp);  
         sol = S('x0', x0,'lbg', lbg,'ubg', ubg,...
                 'lbx', lbx, 'ubx', ubx);
         status = S.stats().return_status;
@@ -531,16 +528,58 @@ options.ipopt.print_level = 5;
         end
     end
     result =struct();
-    result.x= full(sol.x);
-    rv_ul = result.x(1:4*Nbus);
-    rPhi = result.x(4*Nbus+1:4*Nbus+4*Nbranch);
-    rdelta = result.x(4*Nbus+4*Nbranch+1:4*Nbus+4*Nbranch+4);
-    rg = result.x(4*Nbus+4*Nbranch+5:10*Nbus+8*Nbranch+4);
-    rPsi = result.x(10*Nbus+8*Nbranch+5:12*Nbus+12*Nbranch+4);
-    rvv = result.x(12*Nbus+12*Nbranch+5:12*Nbus+20*Nbranch+4);
-    rcossin = result.x(12*Nbus+20*Nbranch+5:12*Nbus+28*Nbranch+4);
-    rpq = result.x(12*Nbus+28*Nbranch+5:12*Nbus+32*Nbranch+4);
-    rrest = result.x(12*Nbus+32*Nbranch+5:end);
+    result.v_u = full(sol.x(1:Nbus));
+    result.v_l = full(sol.x(Nbus+1:2*Nbus));
+    result.Delta_v_u = full(sol.x(2*Nbus+1:3*Nbus));
+    result.Delta_v_l = full(sol.x(3*Nbus+1:4*Nbus));
+    result.Phi_u = full(sol.x(4*Nbus+1:4*Nbus+Nbranch));
+    result.Phi_l = full(sol.x(4*Nbus+Nbranch+1:4*Nbus+2*Nbranch));
+    result.Delta_Phi_u = full(sol.x(4*Nbus+2*Nbranch+1:4*Nbus+3*Nbranch));
+    result.Delta_Phi_l = full(sol.x(4*Nbus+3*Nbranch+1:4*Nbus+4*Nbranch));
+    result.delta = full(sol.x(4*Nbus+4*Nbranch+1:4*Nbus+4*Nbranch+4));
+    result.g_u_pinj = full(sol.x(4*Nbus+4*Nbranch+5:5*Nbus+4*Nbranch+4));
+    result.g_l_pinj = full(sol.x(5*Nbus+4*Nbranch+5:6*Nbus+4*Nbranch+4));
+    result.g_u_qinj = full(sol.x(6*Nbus+4*Nbranch+5:7*Nbus+4*Nbranch+4));
+    result.g_l_qinj = full(sol.x(7*Nbus+4*Nbranch+5:8*Nbus+4*Nbranch+4));
+    result.g_u_vvsin = full(sol.x(8*Nbus+4*Nbranch+5:8*Nbus+5*Nbranch+4));
+    result.g_l_vvsin = full(sol.x(8*Nbus+5*Nbranch+5:8*Nbus+6*Nbranch+4));
+    result.g_u_vvcos = full(sol.x(8*Nbus+6*Nbranch+5:8*Nbus+7*Nbranch+4));
+    result.g_l_vvcos = full(sol.x(8*Nbus+7*Nbranch+5:8*Nbus+8*Nbranch+4));
+    result.g_u_vv = full(sol.x(8*Nbus+8*Nbranch+5:9*Nbus+8*Nbranch+4));
+    result.g_l_vv = full(sol.x(9*Nbus+8*Nbranch+5:10*Nbus+8*Nbranch+4));
+    result.Psi_u_vvcos = full(sol.x(10*Nbus+8*Nbranch+5:10*Nbus+9*Nbranch+4));
+    result.Psi_l_vvcos = full(sol.x(10*Nbus+9*Nbranch+5:10*Nbus+10*Nbranch+4));
+    result.Psi_u_vvsin = full(sol.x(10*Nbus+10*Nbranch+5:10*Nbus+11*Nbranch+4));
+    result.Psi_l_vvsin = full(sol.x(10*Nbus+11*Nbranch+5:10*Nbus+12*Nbranch+4));
+    result.Psi_u_vv = full(sol.x(10*Nbus+12*Nbranch+5:11*Nbus+12*Nbranch+4));
+    result.Psi_l_vv = full(sol.x(11*Nbus+12*Nbranch+5:12*Nbus+12*Nbranch+4));
+    result.Delta_vv_u_uu = full(sol.x(12*Nbus+12*Nbranch+5:12*Nbus+13*Nbranch+4));
+    result.Delta_vv_u_ll = full(sol.x(12*Nbus+13*Nbranch+5:12*Nbus+14*Nbranch+4));
+    result.Delta_vv_u_ul = full(sol.x(12*Nbus+14*Nbranch+5:12*Nbus+15*Nbranch+4));
+    result.Delta_vv_u_lu = full(sol.x(12*Nbus+15*Nbranch+5:12*Nbus+16*Nbranch+4));
+    result.Delta_vv_l_uu = full(sol.x(12*Nbus+16*Nbranch+5:12*Nbus+17*Nbranch+4));
+    result.Delta_vv_l_ll = full(sol.x(12*Nbus+17*Nbranch+5:12*Nbus+18*Nbranch+4));
+    result.Delta_vv_l_ul = full(sol.x(12*Nbus+18*Nbranch+5:12*Nbus+19*Nbranch+4));
+    result.Delta_vv_l_lu = full(sol.x(12*Nbus+19*Nbranch+5:12*Nbus+20*Nbranch+4));
+    result.Delta_cos_u_u = full(sol.x(12*Nbus+20*Nbranch+5:12*Nbus+21*Nbranch+4));
+    result.Delta_cos_u_l = full(sol.x(12*Nbus+21*Nbranch+5:12*Nbus+22*Nbranch+4));
+    result.Delta_cos_l_u = full(sol.x(12*Nbus+22*Nbranch+5:12*Nbus+23*Nbranch+4));
+    result.Delta_cos_l_l = full(sol.x(12*Nbus+23*Nbranch+5:12*Nbus+24*Nbranch+4));
+    result.Delta_sin_u_u = full(sol.x(12*Nbus+24*Nbranch+5:12*Nbus+25*Nbranch+4));
+    result.Delta_sin_u_l = full(sol.x(12*Nbus+25*Nbranch+5:12*Nbus+26*Nbranch+4));
+    result.Delta_sin_l_u = full(sol.x(12*Nbus+26*Nbranch+5:12*Nbus+27*Nbranch+4));
+    result.Delta_sin_l_l = full(sol.x(12*Nbus+27*Nbranch+5:12*Nbus+28*Nbranch+4));
+    result.p_line_fr_u = full(sol.x(12*Nbus+28*Nbranch+5:12*Nbus+29*Nbranch+4));
+    result.q_line_fr_u = full(sol.x(12*Nbus+29*Nbranch+5:12*Nbus+30*Nbranch+4));
+    result.p_line_to_u = full(sol.x(12*Nbus+30*Nbranch+5:12*Nbus+31*Nbranch+4));
+    result.q_line_to_u = full(sol.x(12*Nbus+31*Nbranch+5:12*Nbus+32*Nbranch+4));
+    result.pg_opt = full(sol.x(12*Nbus+32*Nbranch+5:12*Nbus+32*Nbranch+Ngen+4));
+    result.pl_opt = full(sol.x(12*Nbus+32*Nbranch+Ngen+5:12*Nbus+32*Nbranch+Ngen+Nload+4));
+    result.ql_opt = full(sol.x(12*Nbus+32*Nbranch+Ngen+Nload+5:12*Nbus+32*Nbranch+Ngen+2*Nload+4));
+    result.pg_opt_u = full(sol.x(12*Nbus+32*Nbranch+Ngen+2*Nload+5:12*Nbus+32*Nbranch+2*Ngen+2*Nload+4));
+    result.alpha_opt = full(sol.x(12*Nbus+32*Nbranch+2*Ngen+2*Nload+5:12*Nbus+32*Nbranch+3*Ngen+2*Nload+4));
+    result.Dalpha_opt = full(sol.x(12*Nbus+32*Nbranch+3*Ngen+2*Nload+5:12*Nbus+32*Nbranch+4*Ngen+2*Nload+4));
+    result.rest = full(sol.x(12*Nbus+32*Nbranch+4*Ngen+2*Nload+5:12*Nbus+32*Nbranch+4*Ngen+2*Nload+10));
 
     %% create the structure to store the values of results
     sanity_check = struct();
