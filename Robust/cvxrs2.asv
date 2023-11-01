@@ -24,8 +24,7 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     Ngen        = numel(id_gen);                 
     Nbranch     = size(mpc.branch,1);
     % added idx
-    ptc_factor = 26;
-    %don't use the number of load
+    PTC_FACOTR = 26;
     
     bus = mpc.bus;
     slack_bus = find(bus(:,BUS_TYPE) == 3);
@@ -37,8 +36,8 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
 
     %load not used
     idx_load = find((mpc.bus(:,PD).^2+mpc.bus(:,QD).^2) ~= 0);
-    idx_pq = find(mpc.bus(:,BUS_TYPE)==1); 
-    Npq = sum(mpc.bus(:,BUS_TYPE)==1);
+    idx_pq   = find(mpc.bus(:,BUS_TYPE)==1); 
+    Npq   = sum(mpc.bus(:,BUS_TYPE)==1);
     Nload = numel(idx_load);
     onoff_pq = zeros(Nbus,1); onoff_pq(idx_pq) = 1;
 
@@ -53,7 +52,7 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     v0 = bus(:,VM);
     theta0 = deg2rad(bus(:,VA));
     Phi0 = E'*theta0;
-    alpha0 = gen(:,ptc_factor);
+    alpha0 = gen(:,PTC_FACOTR);
     delta0 = mpc.delta;
 
     pg0 = (gen(:,GEN_STATUS).*gen(:,PG))/mpc.baseMVA;
@@ -72,8 +71,6 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     vmin = bus(:,VMIN);
     Phi_max = deg2rad(branch(:,ANGMAX));
     Phi_min = deg2rad(branch(:,ANGMIN));
-%     Phi_min =  -1.0472*eye(9,1);
-%     Phi_max =  1.0472*eye(9,1);
     pg_max = (gen(:,GEN_STATUS).*gen(:,PMAX))/mpc.baseMVA;
     pg_min = (gen(:,GEN_STATUS).*gen(:,PMIN))/mpc.baseMVA;
     qg_max = (gen(:,GEN_STATUS).*gen(:,QMAX))/mpc.baseMVA;
@@ -316,60 +313,60 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     g_sin2 = Delta_sin_u_l-cos(Phi0).*Delta_Phi_l-1/2*(Delta_Phi_l).^2;
     g_sin3 = Delta_sin_l_u-cos(Phi0).*Delta_Phi_u+1/2*(Delta_Phi_u).^2;
     g_sin4 = Delta_sin_l_l-cos(Phi0).*Delta_Phi_l+1/2*(Delta_Phi_l).^2;
-    % >= ψ_vvcos0
-    g_gcos11 = g_u_vvcos - cos(Phi0).*Delta_vv_u_uu - v0(idx_fr).*v0(idx_to).*Delta_cos_u_u - 1/4*(Delta_vv_u_uu+Delta_cos_u_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u;
-    g_gcos12 = g_u_vvcos - cos(Phi0).*Delta_vv_u_uu - v0(idx_fr).*v0(idx_to).*Delta_cos_u_l - 1/4*(Delta_vv_u_uu+Delta_cos_u_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l;
-    g_gcos13 = g_u_vvcos - cos(Phi0).*Delta_vv_u_ul - v0(idx_fr).*v0(idx_to).*Delta_cos_u_u - 1/4*(Delta_vv_u_ul+Delta_cos_u_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u;
-    g_gcos14 = g_u_vvcos - cos(Phi0).*Delta_vv_u_ul - v0(idx_fr).*v0(idx_to).*Delta_cos_u_l - 1/4*(Delta_vv_u_ul+Delta_cos_u_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l;
-    g_gcos15 = g_u_vvcos - cos(Phi0).*Delta_vv_u_lu - v0(idx_fr).*v0(idx_to).*Delta_cos_u_u - 1/4*(Delta_vv_u_lu+Delta_cos_u_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u;
-    g_gcos16 = g_u_vvcos - cos(Phi0).*Delta_vv_u_lu - v0(idx_fr).*v0(idx_to).*Delta_cos_u_l - 1/4*(Delta_vv_u_lu+Delta_cos_u_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l;
-    g_gcos17 = g_u_vvcos - cos(Phi0).*Delta_vv_u_ll - v0(idx_fr).*v0(idx_to).*Delta_cos_u_u - 1/4*(Delta_vv_u_ll+Delta_cos_u_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u;
-    g_gcos18 = g_u_vvcos - cos(Phi0).*Delta_vv_u_ll - v0(idx_fr).*v0(idx_to).*Delta_cos_u_l - 1/4*(Delta_vv_u_ll+Delta_cos_u_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l;
-    % <= ψ_vvcos0
-    g_gcos21 = g_l_vvcos - cos(Phi0).*Delta_vv_l_uu - v0(idx_fr).*v0(idx_to).*Delta_cos_l_u + 1/4*(Delta_vv_l_uu-Delta_cos_l_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u;
-    g_gcos22 = g_l_vvcos - cos(Phi0).*Delta_vv_l_uu - v0(idx_fr).*v0(idx_to).*Delta_cos_l_l + 1/4*(Delta_vv_l_uu-Delta_cos_l_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l;
-    g_gcos23 = g_l_vvcos - cos(Phi0).*Delta_vv_l_ul - v0(idx_fr).*v0(idx_to).*Delta_cos_l_u + 1/4*(Delta_vv_l_ul-Delta_cos_l_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u;
-    g_gcos24 = g_l_vvcos - cos(Phi0).*Delta_vv_l_ul - v0(idx_fr).*v0(idx_to).*Delta_cos_l_l + 1/4*(Delta_vv_l_ul-Delta_cos_l_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l;
-    g_gcos25 = g_l_vvcos - cos(Phi0).*Delta_vv_l_lu - v0(idx_fr).*v0(idx_to).*Delta_cos_l_u + 1/4*(Delta_vv_l_lu-Delta_cos_l_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u;
-    g_gcos26 = g_l_vvcos - cos(Phi0).*Delta_vv_l_lu - v0(idx_fr).*v0(idx_to).*Delta_cos_l_l + 1/4*(Delta_vv_l_lu-Delta_cos_l_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l;
-    g_gcos27 = g_l_vvcos - cos(Phi0).*Delta_vv_l_ll - v0(idx_fr).*v0(idx_to).*Delta_cos_l_u + 1/4*(Delta_vv_l_ll-Delta_cos_l_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u;
-    g_gcos28 = g_l_vvcos - cos(Phi0).*Delta_vv_l_ll - v0(idx_fr).*v0(idx_to).*Delta_cos_l_l + 1/4*(Delta_vv_l_ll-Delta_cos_l_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0) - v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l;
+    % >= 0
+    g_gcos11 = g_u_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_u_uu+v0(idx_fr).*v0(idx_to).*Delta_cos_u_u+1/4*(Delta_vv_u_uu+Delta_cos_u_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u);
+    g_gcos12 = g_u_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_u_uu+v0(idx_fr).*v0(idx_to).*Delta_cos_u_l+1/4*(Delta_vv_u_uu+Delta_cos_u_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l);
+    g_gcos13 = g_u_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_u_ul+v0(idx_fr).*v0(idx_to).*Delta_cos_u_u+1/4*(Delta_vv_u_ul+Delta_cos_u_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u);
+    g_gcos14 = g_u_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_u_ul+v0(idx_fr).*v0(idx_to).*Delta_cos_u_l+1/4*(Delta_vv_u_ul+Delta_cos_u_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l);
+    g_gcos15 = g_u_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_u_lu+v0(idx_fr).*v0(idx_to).*Delta_cos_u_u+1/4*(Delta_vv_u_lu+Delta_cos_u_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u);
+    g_gcos16 = g_u_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_u_lu+v0(idx_fr).*v0(idx_to).*Delta_cos_u_l+1/4*(Delta_vv_u_lu+Delta_cos_u_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l);
+    g_gcos17 = g_u_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_u_ll+v0(idx_fr).*v0(idx_to).*Delta_cos_u_u+1/4*(Delta_vv_u_ll+Delta_cos_u_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u);
+    g_gcos18 = g_u_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_u_ll+v0(idx_fr).*v0(idx_to).*Delta_cos_u_l+1/4*(Delta_vv_u_ll+Delta_cos_u_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l);
+    % <= 0
+    g_gcos21 = g_l_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_l_uu+v0(idx_fr).*v0(idx_to).*Delta_cos_l_u-1/4*(Delta_vv_l_uu-Delta_cos_l_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u);
+    g_gcos22 = g_l_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_l_uu+v0(idx_fr).*v0(idx_to).*Delta_cos_l_l-1/4*(Delta_vv_l_uu-Delta_cos_l_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l);
+    g_gcos23 = g_l_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_l_ul+v0(idx_fr).*v0(idx_to).*Delta_cos_l_u-1/4*(Delta_vv_l_ul-Delta_cos_l_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u);
+    g_gcos24 = g_l_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_l_ul+v0(idx_fr).*v0(idx_to).*Delta_cos_l_l-1/4*(Delta_vv_l_ul-Delta_cos_l_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l);
+    g_gcos25 = g_l_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_l_lu+v0(idx_fr).*v0(idx_to).*Delta_cos_l_u-1/4*(Delta_vv_l_lu-Delta_cos_l_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u);
+    g_gcos26 = g_l_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_l_lu+v0(idx_fr).*v0(idx_to).*Delta_cos_l_l-1/4*(Delta_vv_l_lu-Delta_cos_l_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l);
+    g_gcos27 = g_l_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_l_ll+v0(idx_fr).*v0(idx_to).*Delta_cos_l_u-1/4*(Delta_vv_l_ll-Delta_cos_l_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u);
+    g_gcos28 = g_l_vvcos-(Psi_vvcos0+cos(Phi0).*Delta_vv_l_ll+v0(idx_fr).*v0(idx_to).*Delta_cos_l_l-1/4*(Delta_vv_l_ll-Delta_cos_l_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_l);
     % >= Psi_vvsin0
-    g_gsin11 = g_u_vvsin - sin(Phi0).*Delta_vv_u_uu - v0(idx_fr).*v0(idx_to).*Delta_sin_u_u - 1/4*(Delta_vv_u_uu+Delta_sin_u_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin12 = g_u_vvsin - sin(Phi0).*Delta_vv_u_uu - v0(idx_fr).*v0(idx_to).*Delta_sin_u_l - 1/4*(Delta_vv_u_uu+Delta_sin_u_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin13 = g_u_vvsin - sin(Phi0).*Delta_vv_u_ul - v0(idx_fr).*v0(idx_to).*Delta_sin_u_u - 1/4*(Delta_vv_u_ul+Delta_sin_u_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin14 = g_u_vvsin - sin(Phi0).*Delta_vv_u_ul - v0(idx_fr).*v0(idx_to).*Delta_sin_u_l - 1/4*(Delta_vv_u_ul+Delta_sin_u_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin15 = g_u_vvsin - sin(Phi0).*Delta_vv_u_lu - v0(idx_fr).*v0(idx_to).*Delta_sin_u_u - 1/4*(Delta_vv_u_lu+Delta_sin_u_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin16 = g_u_vvsin - sin(Phi0).*Delta_vv_u_lu - v0(idx_fr).*v0(idx_to).*Delta_sin_u_l - 1/4*(Delta_vv_u_lu+Delta_sin_u_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin17 = g_u_vvsin - sin(Phi0).*Delta_vv_u_ll - v0(idx_fr).*v0(idx_to).*Delta_sin_u_u - 1/4*(Delta_vv_u_ll+Delta_sin_u_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin18 = g_u_vvsin - sin(Phi0).*Delta_vv_u_ll - v0(idx_fr).*v0(idx_to).*Delta_sin_u_l - 1/4*(Delta_vv_u_ll+Delta_sin_u_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
+    g_gsin11 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_uu+v0(idx_fr).*v0(idx_to).*Delta_sin_u_u+1/4*(Delta_vv_u_uu+Delta_sin_u_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin12 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_uu+v0(idx_fr).*v0(idx_to).*Delta_sin_u_l+1/4*(Delta_vv_u_uu+Delta_sin_u_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin13 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_ul+v0(idx_fr).*v0(idx_to).*Delta_sin_u_u+1/4*(Delta_vv_u_ul+Delta_sin_u_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin14 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_ul+v0(idx_fr).*v0(idx_to).*Delta_sin_u_l+1/4*(Delta_vv_u_ul+Delta_sin_u_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin15 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_lu+v0(idx_fr).*v0(idx_to).*Delta_sin_u_u+1/4*(Delta_vv_u_lu+Delta_sin_u_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin16 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_lu+v0(idx_fr).*v0(idx_to).*Delta_sin_u_l+1/4*(Delta_vv_u_lu+Delta_sin_u_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin17 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_ll+v0(idx_fr).*v0(idx_to).*Delta_sin_u_u+1/4*(Delta_vv_u_ll+Delta_sin_u_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin18 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_ll+v0(idx_fr).*v0(idx_to).*Delta_sin_u_l+1/4*(Delta_vv_u_ll+Delta_sin_u_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
     % >= Psi_vvsin0
-    g_gsin21 = g_u_vvsin - sin(Phi0).*Delta_vv_l_uu - v0(idx_fr).*v0(idx_to).*Delta_sin_u_u - 1/4*(Delta_vv_l_uu+Delta_sin_u_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin22 = g_u_vvsin - sin(Phi0).*Delta_vv_l_uu - v0(idx_fr).*v0(idx_to).*Delta_sin_u_l - 1/4*(Delta_vv_l_uu+Delta_sin_u_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin23 = g_u_vvsin - sin(Phi0).*Delta_vv_l_ul - v0(idx_fr).*v0(idx_to).*Delta_sin_u_u - 1/4*(Delta_vv_l_ul+Delta_sin_u_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin24 = g_u_vvsin - sin(Phi0).*Delta_vv_l_ul - v0(idx_fr).*v0(idx_to).*Delta_sin_u_l - 1/4*(Delta_vv_l_ul+Delta_sin_u_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin25 = g_u_vvsin - sin(Phi0).*Delta_vv_l_lu - v0(idx_fr).*v0(idx_to).*Delta_sin_u_u - 1/4*(Delta_vv_l_lu+Delta_sin_u_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin26 = g_u_vvsin - sin(Phi0).*Delta_vv_l_lu - v0(idx_fr).*v0(idx_to).*Delta_sin_u_l - 1/4*(Delta_vv_l_lu+Delta_sin_u_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin27 = g_u_vvsin - sin(Phi0).*Delta_vv_l_ll - v0(idx_fr).*v0(idx_to).*Delta_sin_u_u - 1/4*(Delta_vv_l_ll+Delta_sin_u_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin28 = g_u_vvsin - sin(Phi0).*Delta_vv_l_ll - v0(idx_fr).*v0(idx_to).*Delta_sin_u_l - 1/4*(Delta_vv_l_ll+Delta_sin_u_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
+    g_gsin21 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_uu+v0(idx_fr).*v0(idx_to).*Delta_sin_u_u+1/4*(Delta_vv_l_uu+Delta_sin_u_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin22 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_uu+v0(idx_fr).*v0(idx_to).*Delta_sin_u_l+1/4*(Delta_vv_l_uu+Delta_sin_u_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin23 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_ul+v0(idx_fr).*v0(idx_to).*Delta_sin_u_u+1/4*(Delta_vv_l_ul+Delta_sin_u_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin24 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_ul+v0(idx_fr).*v0(idx_to).*Delta_sin_u_l+1/4*(Delta_vv_l_ul+Delta_sin_u_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin25 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_lu+v0(idx_fr).*v0(idx_to).*Delta_sin_u_u+1/4*(Delta_vv_l_lu+Delta_sin_u_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin26 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_lu+v0(idx_fr).*v0(idx_to).*Delta_sin_u_l+1/4*(Delta_vv_l_lu+Delta_sin_u_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin27 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_ll+v0(idx_fr).*v0(idx_to).*Delta_sin_u_u+1/4*(Delta_vv_l_ll+Delta_sin_u_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin28 = g_u_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_ll+v0(idx_fr).*v0(idx_to).*Delta_sin_u_l+1/4*(Delta_vv_l_ll+Delta_sin_u_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
     % <= Psi_vvsin0
-    g_gsin31 = g_l_vvsin - sin(Phi0).*Delta_vv_l_uu - v0(idx_fr).*v0(idx_to).*Delta_sin_l_u + 1/4*(Delta_vv_l_uu-Delta_sin_l_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin32 = g_l_vvsin - sin(Phi0).*Delta_vv_l_uu - v0(idx_fr).*v0(idx_to).*Delta_sin_l_l + 1/4*(Delta_vv_l_uu-Delta_sin_l_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin33 = g_l_vvsin - sin(Phi0).*Delta_vv_l_ul - v0(idx_fr).*v0(idx_to).*Delta_sin_l_u + 1/4*(Delta_vv_l_ul-Delta_sin_l_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin34 = g_l_vvsin - sin(Phi0).*Delta_vv_l_ul - v0(idx_fr).*v0(idx_to).*Delta_sin_l_l + 1/4*(Delta_vv_l_ul-Delta_sin_l_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin35 = g_l_vvsin - sin(Phi0).*Delta_vv_l_lu - v0(idx_fr).*v0(idx_to).*Delta_sin_l_u + 1/4*(Delta_vv_l_lu-Delta_sin_l_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin36 = g_l_vvsin - sin(Phi0).*Delta_vv_l_lu - v0(idx_fr).*v0(idx_to).*Delta_sin_l_l + 1/4*(Delta_vv_l_lu-Delta_sin_l_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin37 = g_l_vvsin - sin(Phi0).*Delta_vv_l_ll - v0(idx_fr).*v0(idx_to).*Delta_sin_l_u + 1/4*(Delta_vv_l_ll-Delta_sin_l_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin38 = g_l_vvsin - sin(Phi0).*Delta_vv_l_ll - v0(idx_fr).*v0(idx_to).*Delta_sin_l_l + 1/4*(Delta_vv_l_ll-Delta_sin_l_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
+    g_gsin31 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_uu+v0(idx_fr).*v0(idx_to).*Delta_sin_l_u-1/4*(Delta_vv_l_uu-Delta_sin_l_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin32 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_uu+v0(idx_fr).*v0(idx_to).*Delta_sin_l_l-1/4*(Delta_vv_l_uu-Delta_sin_l_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin33 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_ul+v0(idx_fr).*v0(idx_to).*Delta_sin_l_u-1/4*(Delta_vv_l_ul-Delta_sin_l_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin34 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_ul+v0(idx_fr).*v0(idx_to).*Delta_sin_l_l-1/4*(Delta_vv_l_ul-Delta_sin_l_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin35 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_lu+v0(idx_fr).*v0(idx_to).*Delta_sin_l_u-1/4*(Delta_vv_l_lu-Delta_sin_l_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin36 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_lu+v0(idx_fr).*v0(idx_to).*Delta_sin_l_l-1/4*(Delta_vv_l_lu-Delta_sin_l_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin37 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_ll+v0(idx_fr).*v0(idx_to).*Delta_sin_l_u-1/4*(Delta_vv_l_ll-Delta_sin_l_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin38 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_l_ll+v0(idx_fr).*v0(idx_to).*Delta_sin_l_l-1/4*(Delta_vv_l_ll-Delta_sin_l_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
     % <= Psi_vvsin0
-    g_gsin41 = g_l_vvsin - sin(Phi0).*Delta_vv_u_uu - v0(idx_fr).*v0(idx_to).*Delta_sin_l_u + 1/4*(Delta_vv_u_uu-Delta_sin_l_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin42 = g_l_vvsin - sin(Phi0).*Delta_vv_u_uu - v0(idx_fr).*v0(idx_to).*Delta_sin_l_l + 1/4*(Delta_vv_u_uu-Delta_sin_l_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin43 = g_l_vvsin - sin(Phi0).*Delta_vv_u_ul - v0(idx_fr).*v0(idx_to).*Delta_sin_l_u + 1/4*(Delta_vv_u_ul-Delta_sin_l_u).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin44 = g_l_vvsin - sin(Phi0).*Delta_vv_u_ul - v0(idx_fr).*v0(idx_to).*Delta_sin_l_l + 1/4*(Delta_vv_u_ul-Delta_sin_l_l).^2 + onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin45 = g_l_vvsin - sin(Phi0).*Delta_vv_u_lu - v0(idx_fr).*v0(idx_to).*Delta_sin_l_u + 1/4*(Delta_vv_u_lu-Delta_sin_l_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin46 = g_l_vvsin - sin(Phi0).*Delta_vv_u_lu - v0(idx_fr).*v0(idx_to).*Delta_sin_l_l + 1/4*(Delta_vv_u_lu-Delta_sin_l_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
-    g_gsin47 = g_l_vvsin - sin(Phi0).*Delta_vv_u_ll - v0(idx_fr).*v0(idx_to).*Delta_sin_l_u + 1/4*(Delta_vv_u_ll-Delta_sin_l_u).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u;
-    g_gsin48 = g_l_vvsin - sin(Phi0).*Delta_vv_u_ll - v0(idx_fr).*v0(idx_to).*Delta_sin_l_l + 1/4*(Delta_vv_u_ll-Delta_sin_l_l).^2 + onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0) + v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0) + v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l;
+    g_gsin41 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_uu+v0(idx_fr).*v0(idx_to).*Delta_sin_l_u-1/4*(Delta_vv_u_uu-Delta_sin_l_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin42 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_uu+v0(idx_fr).*v0(idx_to).*Delta_sin_l_l-1/4*(Delta_vv_u_uu-Delta_sin_l_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin43 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_ul+v0(idx_fr).*v0(idx_to).*Delta_sin_l_u-1/4*(Delta_vv_u_ul-Delta_sin_l_u).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin44 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_ul+v0(idx_fr).*v0(idx_to).*Delta_sin_l_l-1/4*(Delta_vv_u_ul-Delta_sin_l_l).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin45 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_lu+v0(idx_fr).*v0(idx_to).*Delta_sin_l_u-1/4*(Delta_vv_u_lu-Delta_sin_l_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin46 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_lu+v0(idx_fr).*v0(idx_to).*Delta_sin_l_l-1/4*(Delta_vv_u_lu-Delta_sin_l_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
+    g_gsin47 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_ll+v0(idx_fr).*v0(idx_to).*Delta_sin_l_u-1/4*(Delta_vv_u_ll-Delta_sin_l_u).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_u);
+    g_gsin48 = g_l_vvsin-(Psi_vvsin0+sin(Phi0).*Delta_vv_u_ll+v0(idx_fr).*v0(idx_to).*Delta_sin_l_l-1/4*(Delta_vv_u_ll-Delta_sin_l_l).^2-onoff_pq(idx_fr).*v_l(idx_fr).*v0(idx_to).*sin(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_l(idx_to).*sin(Phi0)-v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi_l);
     % >= 0
     g_gvv1 = g_u_vv - v_u.^2 + 2*v0.*onoff_pq.*v_u;
     g_gvv2 = g_u_vv - v_l.^2 + 2*v0.*onoff_pq.*v_l;
@@ -405,8 +402,8 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
 
     g_M3 =  M_line_plus *[zeros(2*Nbus,1);Psi_u_vvcos;Psi_u_vvsin;Psi_u_vv]+M_line_minus*[zeros(2*Nbus,1);Psi_l_vvcos;Psi_l_vvsin;Psi_l_vv] - [p_line_fr_u;p_line_to_u;q_line_fr_u;q_line_to_u];%<=0
     g_M4 = -M_line_minus*[zeros(2*Nbus,1);Psi_u_vvcos;Psi_u_vvsin;Psi_u_vv]-M_line_plus *[zeros(2*Nbus,1);Psi_l_vvcos;Psi_l_vvsin;Psi_l_vv] - [p_line_fr_u;p_line_to_u;q_line_fr_u;q_line_to_u];%<=0
-    g_line1 = p_line_fr_u.^2+q_line_fr_u.^2+slack_line.^2;% <= s_line_max.^2
-    g_line2 = p_line_to_u.^2+q_line_to_u.^2+slack_line.^2;% <= s_line_max.^2
+    g_line1 = p_line_fr_u.^2+q_line_fr_u.^2+slack_line;% <= s_line_max.^2
+    g_line2 = p_line_to_u.^2+q_line_to_u.^2+slack_line;% <= s_line_max.^2
     
     xi = sqrt(sum((K(:,1:2*Nbus)*[Cl;Cl*diag(power_factor)]*chol(Sigma0,'upper')).^2,2));
     g_K1 = K_plus*[g_u_pinj;-Cl*ql_opt;g_u_vvcos;g_u_vvsin;g_u_vv]+K_minus*[g_l_pinj;-Cl*ql_opt;g_l_vvcos;g_l_vvsin;g_l_vv]+xi.*gamma_opt-[Phi_u;v_u(idx_pq);delta_u;-Phi_l;-v_l(idx_pq);-delta_l];%<=0
@@ -430,12 +427,12 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
         g_margin1,g_margin2,g_margin3,g_margin4,g_pgopt,g_cost);    % 6
     % Define the lower bound of constraints
     lbg = vertcat(zeros(Ngen,1), v0, v0, Phi0, Phi0, delta0, delta0, alpha0, alpha0, zeros(4*Nbranch,1), -inf(4*Nbranch,1), zeros(2*Nbranch,1), -inf(2*Nbranch,1), zeros(2*Nbranch,1), -inf(2*Nbranch,1),...
-        repmat(Psi_vvcos0,8,1),-inf(8*length(Psi_vvcos0),1), repmat(Psi_vvsin0,8,1),repmat(Psi_vvsin0,8,1),-inf(8*length(Psi_vvsin0),1),-inf(8*length(Psi_vvsin0),1),...
+        zeros(8*length(Psi_vvcos0),1),-inf(8*length(Psi_vvcos0),1), zeros(8*length(Psi_vvsin0),1),zeros(8*length(Psi_vvsin0),1),-inf(8*length(Psi_vvsin0),1),-inf(8*length(Psi_vvsin0),1),...
         zeros(2*Nbus,1), -inf(2*Nbus,1),  Psi_vvcos0,Psi_vvcos0, -inf(2*Nbranch,1),   Psi_vvsin0,Psi_vvsin0, -inf(2*Nbranch,1),      zeros(2*Nbus,1), -inf(2*Nbus,1),  zeros(Nbus,1),-inf(Nbus,1),...
         -inf(Ngen,1),pg_min, zeros(Nnpq,1),-inf(Nnpq,1),-inf(8*Nbranch,1),-inf(2*Nbranch,1),        -inf(2*(Nbranch+Npq+1),1),   zeros(4,1), -inf(Ngen,1),  -inf);
     % Define the upper bound of constraints
     ubg = vertcat(zeros(Ngen,1),v0, v0, Phi0,Phi0,delta0,delta0,alpha0,alpha0,inf(4*Nbranch,1),zeros(4*Nbranch,1), inf(2*Nbranch,1),zeros(2*Nbranch,1),inf(2*Nbranch,1),zeros(2*Nbranch,1),...
-        inf(8*length(Psi_vvcos0),1),repmat(Psi_vvcos0,8,1), inf(8*length(Psi_vvsin0),1),inf(8*length(Psi_vvsin0),1),repmat(Psi_vvsin0,8,1),repmat(Psi_vvsin0,8,1),...
+        inf(8*length(Psi_vvcos0),1),zeros(8*length(Psi_vvcos0),1), inf(8*length(Psi_vvsin0),1),  inf(8*length(Psi_vvsin0),1),zeros(8*length(Psi_vvsin0),1),zeros(8*length(Psi_vvsin0),1),...
         inf(2*Nbus,1),   Psi_vv0,Psi_vv0, inf(2*Nbranch,1),     Psi_vvcos0,Psi_vvcos0, inf(2*Nbranch,1),       Psi_vvsin0, Psi_vvsin0, inf(2*Nbus,1),   Psi_vv0,Psi_vv0, inf(Nbus,1),zeros(Nbus,1),...
         pg_max,inf(Ngen,1), inf(Nnpq,1),zeros(Nnpq,1),zeros(8*Nbranch,1),s_line_max.^2,s_line_max.^2,zeros(2*(Nbranch+Npq+1),1), inf(4,1),   zeros(Ngen,1),   0);
 
@@ -591,25 +588,25 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     sanity_check.alpha0 = alpha0;
 
     % solution 
-    sanity_check.delta_u = full(sol.x(4*Nbus+4*Nbranch+1));
-    sanity_check.delta_l = full(sol.x(4*Nbus+4*Nbranch+2));
-    sanity_check.v_u = full(sol.x(1:Nbus));
-    sanity_check.v_l = full(sol.x(Nbus+1:2*Nbus));
-    sanity_check.Phi_u = full(sol.x(4*Nbus+1:4*Nbus+Nbranch));
-    sanity_check.Phi_l = full(sol.x(4*Nbus+Nbranch+1:4*Nbus+2*Nbranch));
-    sanity_check.Psi_u_vvcos = rPsi(1:Nbranch);
-    sanity_check.Psi_l_vvcos = rPsi(Nbranch+1:2*Nbranch);
-    sanity_check.Psi_u_vvsin = rPsi(2*Nbranch+1:3*Nbranch);
-    sanity_check.Psi_l_vvsin = rPsi(3*Nbranch+1:4*Nbranch);
-    sanity_check.Psi_u_vv    = rPsi(4*Nbranch+1:4*Nbranch+Nbus);
-    sanity_check.Psi_l_vv    = rPsi(4*Nbranch+Nbus+1:4*Nbranch+2*Nbus);
-    sanity_check.g_u_vvsin = rg(4*Nbus+1:4*Nbus+Nbranch);
-    sanity_check.g_l_vvsin = rg(4*Nbus+Nbranch+1:4*Nbus+2*Nbranch);
-    sanity_check.g_u_vvcos = rg(4*Nbus+2*Nbranch+1:4*Nbus+3*Nbranch);
-    sanity_check.g_l_vvcos = rg(4*Nbus+3*Nbranch+1:4*Nbus+4*Nbranch);
-    sanity_check.g_u_vv    = rg(4*Nbus+4*Nbranch+1:5*Nbus+4*Nbranch);
-    sanity_check.g_l_vv    = rg(5*Nbus+4*Nbranch+1:6*Nbus+4*Nbranch);
-    sanity_check.obj = rrest(end-5);
+    sanity_check.delta_u = result.delta(1);
+    sanity_check.delta_l = result.delta(2);
+    sanity_check.v_u = result.v_u;
+    sanity_check.v_l = result.v_l;
+    sanity_check.Phi_u = result.Phi_u;
+    sanity_check.Phi_l = result.Phi_l;
+    sanity_check.Psi_u_vvcos = result.Psi_u_vvcos;
+    sanity_check.Psi_l_vvcos = result.Psi_l_vvcos;
+    sanity_check.Psi_u_vvsin = result.Psi_l_vvsin;
+    sanity_check.Psi_l_vvsin = result.Psi_l_vvsin;
+    sanity_check.Psi_u_vv    = result.Psi_u_vv;
+    sanity_check.Psi_l_vv    = result.Psi_l_vv;
+    sanity_check.g_u_vvsin = result.g_u_vvsin;
+    sanity_check.g_l_vvsin = result.g_l_vvsin;
+    sanity_check.g_u_vvcos = result.g_u_vvcos;
+    sanity_check.g_l_vvcos = result.g_l_vvcos;
+    sanity_check.g_u_vv    = result.g_u_vv;
+    sanity_check.g_l_vv    = result.g_l_vv;
+    sanity_check.obj = result.rest(1);
 
     %sanity_check.solve_time = sol.solvertime;
     sanity_check.status = strcmp(status, 'Solve_Succeeded');

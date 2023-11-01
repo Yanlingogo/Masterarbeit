@@ -42,4 +42,5 @@ Sigma_0 = mpc.uncertainty.Sigma0;
 gamma_0 = mpc.uncertainty.gamma0;
 mpc.uncertainty.gamma0 = gamma_req;
 max_iter_SCRS = 10;
-[mpc, result_cvxr] = scrs(mpc,max_iter_SCRS);
+%[mpc, result_cvxr] = scrs(mpc,max_iter_SCRS);
+[mpc,sanity_check] = cvxrs2(mpc,"obj",[],false);
