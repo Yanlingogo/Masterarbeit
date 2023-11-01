@@ -24,8 +24,7 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     Ngen        = numel(id_gen);                 
     Nbranch     = size(mpc.branch,1);
     % added idx
-    ptc_factor = 26;
-    %don't use the number of load
+    PTC_FACOTR = 26;
     
     bus = mpc.bus;
     slack_bus = find(bus(:,BUS_TYPE) == 3);
@@ -37,8 +36,8 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
 
     %load not used
     idx_load = find((mpc.bus(:,PD).^2+mpc.bus(:,QD).^2) ~= 0);
-    idx_pq = find(mpc.bus(:,BUS_TYPE)==1); 
-    Npq = sum(mpc.bus(:,BUS_TYPE)==1);
+    idx_pq   = find(mpc.bus(:,BUS_TYPE)==1); 
+    Npq   = sum(mpc.bus(:,BUS_TYPE)==1);
     Nload = numel(idx_load);
     onoff_pq = zeros(Nbus,1); onoff_pq(idx_pq) = 1;
 
@@ -53,7 +52,7 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     v0 = bus(:,VM);
     theta0 = deg2rad(bus(:,VA));
     Phi0 = E'*theta0;
-    alpha0 = gen(:,ptc_factor);
+    alpha0 = gen(:,PTC_FACOTR);
     delta0 = mpc.delta;
 
     pg0 = (gen(:,GEN_STATUS).*gen(:,PG))/mpc.baseMVA;
@@ -61,8 +60,6 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     pl0 = bus(idx_load,PD)/mpc.baseMVA;
     ql0 = bus(idx_load,QD)/mpc.baseMVA;
 
-    %ppq0 = bus(idx_pq,PD)/mpc.baseMVA; 
-    %qpq0 = bus(idx_pq,QD)/mpc.baseMVA;
     %get the injection at each bus
     p_inj0 = Cg*(pg0+alpha0*delta0)-Cl*pl0;
     q_inj0 = Cg*qg0-Cl*ql0;
@@ -72,8 +69,6 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     vmin = bus(:,VMIN);
     Phi_max = deg2rad(branch(:,ANGMAX));
     Phi_min = deg2rad(branch(:,ANGMIN));
-%     Phi_min =  -1.0472*eye(9,1);
-%     Phi_max =  1.0472*eye(9,1);
     pg_max = (gen(:,GEN_STATUS).*gen(:,PMAX))/mpc.baseMVA;
     pg_min = (gen(:,GEN_STATUS).*gen(:,PMIN))/mpc.baseMVA;
     qg_max = (gen(:,GEN_STATUS).*gen(:,QMAX))/mpc.baseMVA;
@@ -102,57 +97,13 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     Psi_vvsin0 = v0(idx_fr).*v0(idx_to).*sin(Phi0);
     Psi_vv0 = v0.^2;
     
-    %[Y,Yf,Yt] = makeYbus_cvxr(mpc,phase_shift);
-    [Y,Yf,Yt] = makeYbus(mpc,phase_shift);
-    % Auxiliary variables
-    y_line = branch(:,BR_STATUS)./(branch(:,BR_R)+1i*branch(:,BR_X));
-    b_c = branch(:,BR_STATUS).*branch(:,BR_B);
-    tap_ratio = zeros(Nbranch,1);
-    for i = 1: Nbranch
-        if branch(i,TAP) == 0
-            tap_ratio(i) = 1;
-        else
-            tap_ratio(i) = branch(i,TAP);
-        end
-    end
-    tap = tap_ratio.*exp(1i*branch(:,SHIFT));
-    y_sh = bus(:,GS)+bus(:,BS);
-    % Csh = not necessary
-    y_tt = y_line+1i*b_c/2;
-    y_ff = y_tt./(tap.*conj(tap));
-    y_ft = -y_line./conj(tap);
-    y_tf = -y_line./tap;
-
-    if phase_shift == false
-        Y_cos = sparse([idx_fr; idx_to],[(1:Nbranch)'; (1:Nbranch)'],[y_ft;y_tf],Nbus,Nbranch);
-        Y_sin = sparse([idx_fr; idx_to],[(1:Nbranch)'; (1:Nbranch)'],[y_ft;-y_tf],Nbus,Nbranch);
-        Y_diag = E_to*diag(y_tt)*E_to'+E_fr*diag(y_ff)*E_fr'+diag(y_sh);
-
-        M = [eye(Nbus), zeros(Nbus), -real(Y_cos), -imag(Y_sin), -real(Y_diag);...
-         zeros(Nbus), eye(Nbus),  imag(Y_cos), -real(Y_sin),  imag(Y_diag)];
-        M_line=[zeros(Nbranch,2*Nbus)  real(diag(y_ft)) imag(diag(y_ft))  real(diag(y_ff)*E_fr');
-                zeros(Nbranch,2*Nbus)  real(diag(y_tf)) -imag(diag(y_tf))   real(diag(y_tt)*E_to');
-                zeros(Nbranch,2*Nbus) -imag(diag(y_ft)) real(diag(y_ft)) -imag(diag(y_ff)*E_fr');
-                zeros(Nbranch,2*Nbus) -imag(diag(y_tf)) -real(diag(y_tf))  -imag(diag(y_tt)*E_to')];
-    elseif phase_shift==true
-        Y_plus = E_fr*diag(y_ft.*exp.(-1i*Phi0))+E_to*diag(y_tf.*exp.(1i*Phi0));
-        Y_minus = E_fr*diag(y_ft.*exp.(-1i*Phi0))-E_to*diag(y_tf.*exp.(1i*Phi0));
-        Y_diag = E_to*diag(y_tt)*E_to'+E_fr*diag(y_ff)*E_fr'+diag(y_sh);
-
-        M = [eye(Nbus), zeros(Nbus), -real(Y_plus), -imag(Y_minus), -real(Y_diag);...
-        zeros(Nbus), eye(Nbus),  imag(Y_plus), -real(Y_minus),  imag(Y_diag)];
-        M_line = [zeros(Nbranch, 2*Nbus),  real(diag(y_ft.*exp(-1i*Phi0))), imag(diag(y_ft.*exp(-1i*Phi0))),  real(diag(y_ff)*E_fr');
-              zeros(Nbranch, 2*Nbus),  real(diag(y_tf.*exp(1i*Phi0))),  -imag(diag(y_tf.*exp(1i*Phi0))),   real(diag(y_tt)*E_to');
-              zeros(Nbranch, 2*Nbus), -imag(diag(y_ft.*exp(-1i*Phi0))), real(diag(y_ft.*exp(-1i*Phi0))), -imag(diag(y_ff)*E_fr');
-              zeros(Nbranch, 2*Nbus), -imag(diag(y_tf.*exp(1i*Phi0))),  -real(diag(y_tf.*exp(1i*Phi0))),  -imag(diag(y_tt)*E_to')];       
-    end 
-
+    [Y,Yf,Yt,M,M_line] = makeYbus_cvxr(mpc,phase_shift);
     M_eq = M([1:Nbus, Nbus+idx_pq'],:);
     idx_pvs=setdiff(1:Nbus,idx_pq');
     M_ineq = M(Nbus+idx_pvs,:);
     Nnpq = sum((bus(:, BUS_TYPE) ~= 1),1);
 
-    J_inv_M = -(M_eq * J_psi0) \ M_eq;
+    J_inv_M = -(M_eq*J_psi0)\M_eq;
     C = [E(idx_nslack,:)' zeros(Nbranch,Npq+1);
         zeros(Npq,size(idx_nslack,1)) eye(Npq) zeros(Npq,1);
         zeros(1,size(idx_nslack,1)+Npq) 1];
@@ -591,25 +542,25 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     sanity_check.alpha0 = alpha0;
 
     % solution 
-    sanity_check.delta_u = full(sol.x(4*Nbus+4*Nbranch+1));
-    sanity_check.delta_l = full(sol.x(4*Nbus+4*Nbranch+2));
-    sanity_check.v_u = full(sol.x(1:Nbus));
-    sanity_check.v_l = full(sol.x(Nbus+1:2*Nbus));
-    sanity_check.Phi_u = full(sol.x(4*Nbus+1:4*Nbus+Nbranch));
-    sanity_check.Phi_l = full(sol.x(4*Nbus+Nbranch+1:4*Nbus+2*Nbranch));
-    sanity_check.Psi_u_vvcos = rPsi(1:Nbranch);
-    sanity_check.Psi_l_vvcos = rPsi(Nbranch+1:2*Nbranch);
-    sanity_check.Psi_u_vvsin = rPsi(2*Nbranch+1:3*Nbranch);
-    sanity_check.Psi_l_vvsin = rPsi(3*Nbranch+1:4*Nbranch);
-    sanity_check.Psi_u_vv    = rPsi(4*Nbranch+1:4*Nbranch+Nbus);
-    sanity_check.Psi_l_vv    = rPsi(4*Nbranch+Nbus+1:4*Nbranch+2*Nbus);
-    sanity_check.g_u_vvsin = rg(4*Nbus+1:4*Nbus+Nbranch);
-    sanity_check.g_l_vvsin = rg(4*Nbus+Nbranch+1:4*Nbus+2*Nbranch);
-    sanity_check.g_u_vvcos = rg(4*Nbus+2*Nbranch+1:4*Nbus+3*Nbranch);
-    sanity_check.g_l_vvcos = rg(4*Nbus+3*Nbranch+1:4*Nbus+4*Nbranch);
-    sanity_check.g_u_vv    = rg(4*Nbus+4*Nbranch+1:5*Nbus+4*Nbranch);
-    sanity_check.g_l_vv    = rg(5*Nbus+4*Nbranch+1:6*Nbus+4*Nbranch);
-    sanity_check.obj = rrest(end-5);
+    sanity_check.delta_u = result.delta(1);
+    sanity_check.delta_l = result.delta(2);
+    sanity_check.v_u = result.v_u;
+    sanity_check.v_l = result.v_l;
+    sanity_check.Phi_u = result.Phi_u;
+    sanity_check.Phi_l = result.Phi_l;
+    sanity_check.Psi_u_vvcos = result.Psi_u_vvcos;
+    sanity_check.Psi_l_vvcos = result.Psi_l_vvcos;
+    sanity_check.Psi_u_vvsin = result.Psi_l_vvsin;
+    sanity_check.Psi_l_vvsin = result.Psi_l_vvsin;
+    sanity_check.Psi_u_vv    = result.Psi_u_vv;
+    sanity_check.Psi_l_vv    = result.Psi_l_vv;
+    sanity_check.g_u_vvsin = result.g_u_vvsin;
+    sanity_check.g_l_vvsin = result.g_l_vvsin;
+    sanity_check.g_u_vvcos = result.g_u_vvcos;
+    sanity_check.g_l_vvcos = result.g_l_vvcos;
+    sanity_check.g_u_vv    = result.g_u_vv;
+    sanity_check.g_l_vv    = result.g_l_vv;
+    sanity_check.obj = result.rest(1);
 
     %sanity_check.solve_time = sol.solvertime;
     sanity_check.status = strcmp(status, 'Solve_Succeeded');
