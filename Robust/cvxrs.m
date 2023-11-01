@@ -405,8 +405,8 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
 
     g_M3 =  M_line_plus *[zeros(2*Nbus,1);Psi_u_vvcos;Psi_u_vvsin;Psi_u_vv]+M_line_minus*[zeros(2*Nbus,1);Psi_l_vvcos;Psi_l_vvsin;Psi_l_vv] - [p_line_fr_u;p_line_to_u;q_line_fr_u;q_line_to_u];%<=0
     g_M4 = -M_line_minus*[zeros(2*Nbus,1);Psi_u_vvcos;Psi_u_vvsin;Psi_u_vv]-M_line_plus *[zeros(2*Nbus,1);Psi_l_vvcos;Psi_l_vvsin;Psi_l_vv] - [p_line_fr_u;p_line_to_u;q_line_fr_u;q_line_to_u];%<=0
-    g_line1 = p_line_fr_u.^2+q_line_fr_u.^2+slack_line.^2;% <= s_line_max.^2
-    g_line2 = p_line_to_u.^2+q_line_to_u.^2+slack_line.^2;% <= s_line_max.^2
+    g_line1 = p_line_fr_u.^2+q_line_fr_u.^2+slack_line;% <= s_line_max.^2
+    g_line2 = p_line_to_u.^2+q_line_to_u.^2+slack_line;% <= s_line_max.^2
     
     xi = sqrt(sum((K(:,1:2*Nbus)*[Cl;Cl*diag(power_factor)]*chol(Sigma0,'upper')).^2,2));
     g_K1 = K_plus*[g_u_pinj;-Cl*ql_opt;g_u_vvcos;g_u_vvsin;g_u_vv]+K_minus*[g_l_pinj;-Cl*ql_opt;g_l_vvcos;g_l_vvsin;g_l_vv]+xi.*gamma_opt-[Phi_u;v_u(idx_pq);delta_u;-Phi_l;-v_l(idx_pq);-delta_l];%<=0
@@ -451,13 +451,14 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     end
 
     %% solver the problem under different inputs
-%     tol        = 1e-10;
-%     options.ipopt.tol             = tol;
-%     options.ipopt.constr_viol_tol = tol;
-%     options.ipopt.compl_inf_tol   = tol;
-%     options.ipopt.acceptable_tol  = tol;
-%     options.ipopt.acceptable_constr_viol_tol = tol;
-%     options.ipopt.print_level = 1;
+    tol        = 1e-8;
+    options.ipopt.tol             = tol;
+    options.ipopt.constr_viol_tol = tol;
+    options.ipopt.compl_inf_tol   = tol;
+    options.ipopt.acceptable_tol  = tol;
+    options.ipopt.acceptable_constr_viol_tol = tol;
+    options.ipopt.print_level = 1;
+
 
     if option == "margin" && isempty(target_mpc)
         g_add1 = pg_opt;
@@ -511,8 +512,8 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
         gfun = vertcat(gfun,g_add1,g_add2,g_add3,g_add4);
         lbg = vertcat(lbg,pl0,ql0,0,gamma0);
         ubg = vertcat(ubg,pl0,ql0,inf,inf);
-        nlp = struct('x',x,'f',ffun,'g',gfun);    
-        S = nlpsol('solver','ipopt', nlp);  
+        nlp = struct('x',x,'f',ffun,'g',gfun);
+        S = nlpsol('solver','ipopt', nlp, options);  
         sol = S('x0', x0,'lbg', lbg,'ubg', ubg,...
                 'lbx', lbx, 'ubx', ubx);
         status = S.stats().return_status;
@@ -522,7 +523,7 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
             mpc.gen(:,end)= full(sol.x(end-5-2*Ngen:end-5-Ngen-1));%alpha_opt in x
             sol_v_u = full(sol.x(1:Nbus));
             mpc.gen(:,VG) = sol_v_u(id_gen);
-            fprintf('%s\n', status);
+            fprintf('%s: obj = %.2f\n', status,full(sol.x(end-5)));
         else
             fprintf('Error in solving the problem: %s\n', status);
         end

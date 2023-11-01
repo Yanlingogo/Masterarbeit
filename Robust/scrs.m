@@ -35,7 +35,8 @@ function [mpc,result_cvxr] = scrs(mpc, max_iter_SCRS, varargin)
     result_cvxr.alpha       = gen(:,end);
 
     for iter = 2:result_cvxr.max_iter+1
-        [mpc,sanity_check] = cvxrs(mpc,"obj",[],phase_shift);
+        [mpc,sanity_check] = cvxrs_gurobi2(mpc,"obj",[],phase_shift);
+        %[mpc,sanity_check] = cvxrs(mpc,"obj",[],phase_shift);
         mpc = runpf(mpc);
         test_runpf_cvxr(mpc);
         test_cvxrs(mpc,sanity_check);

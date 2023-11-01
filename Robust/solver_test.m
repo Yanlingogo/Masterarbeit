@@ -421,12 +421,15 @@ lbg = vertcat(lbg,ppq0,qpq0,0,gamma0);
 ubg = vertcat(ubg,ppq0,qpq0,inf,inf);
 
 %options.ipopt.tol         = 1.0e-6;
-options.ipopt.print_level = 5;
-options.print_time        = 5;
-options.ipopt.max_iter    = 100;
+% options.ipopt.print_level = 5;
+% options.print_time        = 5;
+% options.ipopt.max_iter    = 100;
+opts = struct();
+opts.verbose = true;
+opts.print_time = true;
 
-nlp = struct('x',x,'f',ffun,'g',gfun);    
-S = nlpsol('solver','ipopt', nlp,options);  
+qp = struct('x',x,'f',ffun,'g',gfun);    
+S = qpsol('solver','qpoases', qp,opts);  
 sol = S('x0', x0,'lbg', lbg,'ubg', ubg,...
         'lbx', lbx, 'ubx', ubx);
 status = S.stats().return_status;
