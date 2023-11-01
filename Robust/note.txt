@@ -1,0 +1,5 @@
+cvxrs: 约束，变量在一侧
+cvxrs2: g_cos,g_sin 变量，常量均在一侧
+cvxrs_gurobi1: yalmip 写的， 约束参考casadi
+cvxrs_gurobi2: yalmip, g_cos,g_sin约束参考julia
+
