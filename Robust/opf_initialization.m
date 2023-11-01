@@ -40,16 +40,23 @@ function [mpc] = opf_initialization(mpc,restriction_level)
     mpc_opf.gen(:,QMIN) = mpc_opf.gen(:,GEN_STATUS) .* mpc_opf.gen(:,QMIN) + restriction_level *...
         (mpc_opf.gen(:,GEN_STATUS) .* mpc_opf.gen(:,QMAX)-mpc_opf.gen(:,QMIN));
 
-
+    mpc_opf.branch(:,ANGMAX) = 60;
+    mpc_opf.branch(:,ANGMIN) = -60; % operation based on PowerModels in Julia
     mpc_opf.branch(:,ANGMAX) = mpc_opf.branch(:,ANGMAX) - restriction_level * (mpc_opf.branch(:,ANGMAX) - mpc_opf.branch(:, ANGMIN));
     mpc_opf.branch(:,ANGMIN) = mpc_opf.branch(:,ANGMIN) + restriction_level * (mpc_opf.branch(:,ANGMAX) - mpc_opf.branch(:, ANGMIN));
     mpc_opf.branch(:,RATE_A) = mpc_opf.branch(:,RATE_A) * (1-restriction_level);
     mpc_opf.branch(:,RATE_B) = mpc_opf.branch(:,RATE_B) * (1-restriction_level);
     mpc_opf.branch(:,RATE_C) = mpc_opf.branch(:,RATE_C) * (1-restriction_level);
   
-    mpopt = mpoption('mips.costtol',1e-8, 'verbose', 0);
+    opts = mpoption;
+    opts.opf.violation   = 1e-12;
+    opts.mips.costtol    = 1e-12;
+    opts.mips.gradtol    = 1e-12;
+    opts.mips.comptol    = 1e-12;
+    opts.opf.ignore_angle_lim = true;
+
     %mpopt = mpoption('verbose', 0);
-    result_opf = runopf(mpc_opf,mpopt);
+    result_opf = runopf(mpc_opf,opts);
 
     if result_opf.success ~=1
         error(['OPF Initialization failed. (', result_opf.et, ')']);
@@ -81,4 +88,3 @@ function [mpc] = opf_initialization(mpc,restriction_level)
     mpc.uncertainty.Sigma0 = Sigma0; % Assuming Sigma0 has been previously defined
     mpc.uncertainty.gamma0 = gamma_0;   % Assuming gamma0 has been previously defined
 end
-
