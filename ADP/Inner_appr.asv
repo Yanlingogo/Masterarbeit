@@ -1,0 +1,4 @@
+function [outputArg1,outputArg2] = Inner_appr(g, h, z ,y, fr_z,f) % equality and inequality constraints
+    
+end
+
