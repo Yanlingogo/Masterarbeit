@@ -67,5 +67,6 @@ function [Y,Yf,Yt,M,M_line] = makeYbus2(mpc,phase_shift)
               zeros(Nbranch, 2*Nbus),  real(diag(y_tf.*exp(1i*Phi0))),  -imag(diag(y_tf.*exp(1i*Phi0))),   real(diag(y_tt)*E_to');
               zeros(Nbranch, 2*Nbus), -imag(diag(y_ft.*exp(-1i*Phi0))), real(diag(y_ft.*exp(-1i*Phi0))), -imag(diag(y_ff)*E_fr');
               zeros(Nbranch, 2*Nbus), -imag(diag(y_tf.*exp(1i*Phi0))),  -real(diag(y_tf.*exp(1i*Phi0))),  -imag(diag(y_tt)*E_to')];
+    end
 end
 

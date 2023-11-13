@@ -225,16 +225,16 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     x0 = vertcat(v0,v0,zeros(2*Nbus,1),Phi0,Phi0,zeros(2*Nbranch,1),delta0,delta0,zeros(2+8*Nbus+28*Nbranch,1),...
         pg0,pl0,ql0,pg0,alpha0,zeros(Ngen,1),mpc.cost,zeros(5,1));
     % Define the lower bound of variables
-%     lbx = vertcat(vmin,vmin,vmin-v0,vmin-v0,Phi_min,Phi_min,Phi_min-Phi0,Phi_min-Phi0,...
-%         -inf(10+8*Nbus+28*Nbranch+4*Ngen+2*Nload,1));
     lbx = vertcat(vmin,vmin,vmin-v0,vmin-v0,Phi_min,Phi_min,Phi_min-Phi0,Phi_min-Phi0,...
-        -inf(4+8*Nbus+28*Nbranch,1),pg_min,-inf(2*Nload+3*Ngen+6,1));
+        -inf(10+8*Nbus+28*Nbranch+4*Ngen+2*Nload,1));
+%     lbx = vertcat(vmin,vmin,vmin-v0,vmin-v0,Phi_min,Phi_min,Phi_min-Phi0,Phi_min-Phi0,...
+%         -inf(4+8*Nbus+28*Nbranch,1),pg_min,-inf(2*Nload+3*Ngen+6,1));
 
     % Define the upper bound of variables
-%     ubx = vertcat(vmax,vmax,vmax-v0,vmax-v0,Phi_max,Phi_max,Phi_max-Phi0,Phi_max-Phi0,...
-%         inf(10+8*Nbus+28*Nbranch+4*Ngen+2*Nload,1));
     ubx = vertcat(vmax,vmax,vmax-v0,vmax-v0,Phi_max,Phi_max,Phi_max-Phi0,Phi_max-Phi0,...
-        inf(4+8*Nbus+28*Nbranch,1),pg_max,inf(2*Nload+3*Ngen+6,1));
+        inf(10+8*Nbus+28*Nbranch+4*Ngen+2*Nload,1));
+%     ubx = vertcat(vmax,vmax,vmax-v0,vmax-v0,Phi_max,Phi_max,Phi_max-Phi0,Phi_max-Phi0,...
+%         inf(4+8*Nbus+28*Nbranch,1),pg_max,inf(2*Nload+3*Ngen+6,1));
     % Define gfun
     % Equality constraints
     g_v1 = v_u(id_gen)-v_l(id_gen);
@@ -366,6 +366,7 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     g_margin3 = slack_line -margin_opt;
     g_margin4 = gamma_opt - margin_opt;%>=0
     g_pgopt = pg_opt+alpha0.*delta_u-pg_opt_u; %<=0 
+    g_pgopt2 = pg_opt+alpha0.*delta0+Dalpha_opt.*delta0+alpha0.*Ddelta_u+1/4*(Ddelta_u+Dalpha_opt).^2-pg_opt_u;
     g_cost = gencost(:,1)'*(pg_opt_u*mpc.baseMVA).^2+gencost(:,2)'*(pg_opt_u*mpc.baseMVA)+sum(gencost(:,3))-cost_opt;%<=0
     
     gfun = vertcat(g_v1,g_v2,g_v3,g_Phi1,g_Phi2,g_delta1,g_delta2,g_alpha,g_alpha2,...% Ngen+4*Nbus+8
@@ -378,17 +379,17 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
         g_gsin41,g_gsin42,g_gsin43,g_gsin44,g_gsin45,g_gsin46,g_gsin47,g_gsin48,...
         g_gvv1,g_gvv2,g_gvv3,g_gvv4,g_Psi1,g_Psi2,g_Psi3,g_Psi4,g_Psi5,g_Psi6,g_Psi7,g_Psi8,g_Psi9,g_Psi10,g_Psi11,g_Psi12,...% 36+108
         g_g1,g_g2,g_pgmax,g_pgmin,g_M1,g_M2,g_M3,g_M4,g_line1,g_line2,g_K1,...%2*Nbus+2*Ngen+6+72+36
-        g_margin1,g_margin2,g_margin3,g_margin4,g_pgopt,g_cost);    % 6
+        g_margin1,g_margin2,g_margin3,g_margin4,g_pgopt,g_pgopt2,g_cost);    % 6
     % Define the lower bound of constraints
     lbg = vertcat(zeros(Ngen,1), v0, v0, Phi0, Phi0, delta0, delta0, alpha0, alpha0, zeros(4*Nbranch,1), -inf(4*Nbranch,1), zeros(2*Nbranch,1), -inf(2*Nbranch,1), zeros(2*Nbranch,1), -inf(2*Nbranch,1),...
         zeros(8*length(Psi_vvcos0),1),-inf(8*length(Psi_vvcos0),1), zeros(8*length(Psi_vvsin0),1),zeros(8*length(Psi_vvsin0),1),-inf(8*length(Psi_vvsin0),1),-inf(8*length(Psi_vvsin0),1),...
         zeros(2*Nbus,1), -inf(2*Nbus,1),  Psi_vvcos0,Psi_vvcos0, -inf(2*Nbranch,1),   Psi_vvsin0,Psi_vvsin0, -inf(2*Nbranch,1),      zeros(2*Nbus,1), -inf(2*Nbus,1),  zeros(Nbus,1),-inf(Nbus,1),...
-        -inf(Ngen,1),pg_min, zeros(Nnpq,1),-inf(Nnpq,1),-inf(8*Nbranch,1),-inf(2*Nbranch,1),        -inf(2*(Nbranch+Npq+1),1),   zeros(4,1), -inf(Ngen,1),  -inf);
+        -inf(Ngen,1),pg_min, zeros(Nnpq,1),-inf(Nnpq,1),-inf(8*Nbranch,1),-inf(2*Nbranch,1),        -inf(2*(Nbranch+Npq+1),1),   zeros(4,1), -inf(Ngen,1), -inf(Ngen,1), -inf);
     % Define the upper bound of constraints
     ubg = vertcat(zeros(Ngen,1),v0, v0, Phi0,Phi0,delta0,delta0,alpha0,alpha0,inf(4*Nbranch,1),zeros(4*Nbranch,1), inf(2*Nbranch,1),zeros(2*Nbranch,1),inf(2*Nbranch,1),zeros(2*Nbranch,1),...
         inf(8*length(Psi_vvcos0),1),zeros(8*length(Psi_vvcos0),1), inf(8*length(Psi_vvsin0),1),  inf(8*length(Psi_vvsin0),1),zeros(8*length(Psi_vvsin0),1),zeros(8*length(Psi_vvsin0),1),...
         inf(2*Nbus,1),   Psi_vv0,Psi_vv0, inf(2*Nbranch,1),     Psi_vvcos0,Psi_vvcos0, inf(2*Nbranch,1),       Psi_vvsin0, Psi_vvsin0, inf(2*Nbus,1),   Psi_vv0,Psi_vv0, inf(Nbus,1),zeros(Nbus,1),...
-        pg_max,inf(Ngen,1), inf(Nnpq,1),zeros(Nnpq,1),zeros(8*Nbranch,1),s_line_max.^2,s_line_max.^2,zeros(2*(Nbranch+Npq+1),1), inf(4,1),   zeros(Ngen,1),   0);
+        pg_max,inf(Ngen,1), inf(Nnpq,1),zeros(Nnpq,1),zeros(8*Nbranch,1),s_line_max.^2,s_line_max.^2,zeros(2*(Nbranch+Npq+1),1), inf(4,1),   zeros(Ngen,1), zeros(Ngen,1),  0);
 
     if ~isempty(target_mpc)
         gen_target = target_mpc.gen;
@@ -408,7 +409,8 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     options.ipopt.compl_inf_tol   = tol;
     options.ipopt.acceptable_tol  = tol;
     options.ipopt.acceptable_constr_viol_tol = tol;
-    options.ipopt.print_level = 1;
+    options.ipopt.print_level = 5;
+    options.ipopt.max_iter = 100;
 
 
     if option == "margin" && isempty(target_mpc)
@@ -464,7 +466,7 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
         lbg = vertcat(lbg,pl0,ql0,0,gamma0);
         ubg = vertcat(ubg,pl0,ql0,inf,inf);
         nlp = struct('x',x,'f',ffun,'g',gfun);
-        S = nlpsol('solver','ipopt', nlp, options);  
+        S = nlpsol('solver','ipopt', nlp,options);  
         sol = S('x0', x0,'lbg', lbg,'ubg', ubg,...
                 'lbx', lbx, 'ubx', ubx);
         status = S.stats().return_status;

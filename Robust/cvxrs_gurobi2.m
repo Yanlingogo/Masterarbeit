@@ -61,8 +61,6 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     pl0 = bus(idx_load,PD)/mpc.baseMVA;
     ql0 = bus(idx_load,QD)/mpc.baseMVA;
 
-    %ppq0 = bus(idx_pq,PD)/mpc.baseMVA; 
-    %qpq0 = bus(idx_pq,QD)/mpc.baseMVA;
     %get the injection at each bus
     p_inj0 = Cg*(pg0+alpha0*delta0)-Cl*pl0;
     q_inj0 = Cg*qg0-Cl*ql0;
@@ -70,10 +68,8 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
 
     vmax = bus(:,VMAX);
     vmin = bus(:,VMIN);
-%     Phi_max = deg2rad(branch(:,ANGMAX));
-%     Phi_min = deg2rad(branch(:,ANGMIN));
-    Phi_min =  -1.0472*eye(9,1);
-    Phi_max =  1.0472*eye(9,1);
+    Phi_max = deg2rad(branch(:,ANGMAX));
+    Phi_min = deg2rad(branch(:,ANGMIN));
     pg_max = (gen(:,GEN_STATUS).*gen(:,PMAX))/mpc.baseMVA;
     pg_min = (gen(:,GEN_STATUS).*gen(:,PMIN))/mpc.baseMVA;
     qg_max = (gen(:,GEN_STATUS).*gen(:,QMAX))/mpc.baseMVA;
@@ -103,50 +99,7 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     Psi_vv0 = v0.^2;
     
     %[Y,Yf,Yt] = makeYbus_cvxr(mpc,phase_shift);
-    [Y,Yf,Yt] = makeYbus(mpc,phase_shift);
-    % Auxiliary variables
-    y_line = branch(:,BR_STATUS)./(branch(:,BR_R)+1i*branch(:,BR_X));
-    b_c = branch(:,BR_STATUS).*branch(:,BR_B);
-    tap_ratio = zeros(Nbranch,1);
-    for i = 1: Nbranch
-        if branch(i,TAP) == 0
-            tap_ratio(i) = 1;
-        else
-            tap_ratio(i) = branch(i,TAP);
-        end
-    end
-    tap = tap_ratio.*exp(1i*branch(:,SHIFT));
-    y_sh = bus(:,GS)+bus(:,BS);
-    % Csh = not necessary
-    y_tt = y_line+1i*b_c/2;
-    y_ff = y_tt./(tap.*conj(tap));
-    y_ft = -y_line./conj(tap);
-    y_tf = -y_line./tap;
-
-    if phase_shift == false
-        Y_cos = sparse([idx_fr; idx_to],[(1:Nbranch)'; (1:Nbranch)'],[y_ft;y_tf],Nbus,Nbranch);
-        Y_sin = sparse([idx_fr; idx_to],[(1:Nbranch)'; (1:Nbranch)'],[y_ft;-y_tf],Nbus,Nbranch);
-        Y_diag = E_to*diag(y_tt)*E_to'+E_fr*diag(y_ff)*E_fr'+diag(y_sh);
-
-        M = [eye(Nbus), zeros(Nbus), -real(Y_cos), -imag(Y_sin), -real(Y_diag);...
-         zeros(Nbus), eye(Nbus),  imag(Y_cos), -real(Y_sin),  imag(Y_diag)];
-        M_line=[zeros(Nbranch,2*Nbus)  real(diag(y_ft)) imag(diag(y_ft))  real(diag(y_ff)*E_fr');
-                zeros(Nbranch,2*Nbus)  real(diag(y_tf)) -imag(diag(y_tf))   real(diag(y_tt)*E_to');
-                zeros(Nbranch,2*Nbus) -imag(diag(y_ft)) real(diag(y_ft)) -imag(diag(y_ff)*E_fr');
-                zeros(Nbranch,2*Nbus) -imag(diag(y_tf)) -real(diag(y_tf))  -imag(diag(y_tt)*E_to')];
-    elseif phase_shift==true
-        Y_plus = E_fr*diag(y_ft.*exp.(-1i*Phi0))+E_to*diag(y_tf.*exp.(1i*Phi0));
-        Y_minus = E_fr*diag(y_ft.*exp.(-1i*Phi0))-E_to*diag(y_tf.*exp.(1i*Phi0));
-        Y_diag = E_to*diag(y_tt)*E_to'+E_fr*diag(y_ff)*E_fr'+diag(y_sh);
-
-        M = [eye(Nbus), zeros(Nbus), -real(Y_plus), -imag(Y_minus), -real(Y_diag);...
-        zeros(Nbus), eye(Nbus),  imag(Y_plus), -real(Y_minus),  imag(Y_diag)];
-        M_line = [zeros(Nbranch, 2*Nbus),  real(diag(y_ft.*exp(-1i*Phi0))), imag(diag(y_ft.*exp(-1i*Phi0))),  real(diag(y_ff)*E_fr');
-              zeros(Nbranch, 2*Nbus),  real(diag(y_tf.*exp(1i*Phi0))),  -imag(diag(y_tf.*exp(1i*Phi0))),   real(diag(y_tt)*E_to');
-              zeros(Nbranch, 2*Nbus), -imag(diag(y_ft.*exp(-1i*Phi0))), real(diag(y_ft.*exp(-1i*Phi0))), -imag(diag(y_ff)*E_fr');
-              zeros(Nbranch, 2*Nbus), -imag(diag(y_tf.*exp(1i*Phi0))),  -real(diag(y_tf.*exp(1i*Phi0))),  -imag(diag(y_tt)*E_to')];       
-    end 
-
+    [Y,Yf,Yt,M,M_line] = makeYbus_cvxr(mpc,phase_shift);
     M_eq = M([1:Nbus, Nbus+idx_pq'],:);
     idx_pvs=setdiff(1:Nbus,idx_pq');
     M_ineq = M(Nbus+idx_pvs,:);
@@ -265,16 +218,21 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     margin_opt = sdpvar;
 
 %% constraints
-    Constraints = [v_u(id_gen)==v_l(id_gen), 
+    Constraints = [v_u<=vmax,v_u>=vmin,v_l<=vmax,v_l>=vmin,
+                    Delta_v_u>=vmin-v0,Delta_v_u<=vmax-v0,
+                    Delta_v_l>=vmin-v0,Delta_v_l<=vmax-v0];
+    Constraints = [Constraints,Phi_u>=Phi_min,Phi_u<=Phi_max,Phi_l>=Phi_min,Phi_l<=Phi_max,
+                    Delta_Phi_u>=Phi_min-Phi0,Delta_Phi_u<=Phi_max-Phi0,
+                    Delta_Phi_l>=Phi_min-Phi0,Delta_Phi_l<=Phi_max-Phi0];
+    Constraints = [Constraints,v_u(id_gen)==v_l(id_gen), 
                 v_u-Delta_v_u == v0,
                 v_l-Delta_v_l == v0,
                 Phi_u-Delta_Phi_u == Phi0,
                 Phi_l-Delta_Phi_l == Phi0,
                 delta_u-Ddelta_u == delta0,
                 delta_l-Ddelta_l == delta0,
-                alpha_opt-Dalpha_opt == alpha0,
-                alpha_opt == alpha0
-                ];
+                alpha_opt == alpha0,
+                alpha_opt == alpha0 + Dalpha_opt];
 
     Constraints = [Constraints, 
                     Delta_vv_u_uu>=Delta_v_u(idx_fr).*v0(idx_to)+v0(idx_fr).*Delta_v_u(idx_to)+1/4*(Delta_v_u(idx_fr)+Delta_v_u(idx_to)).^2,
@@ -283,10 +241,10 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
                     Delta_vv_u_lu>=Delta_v_l(idx_fr).*v0(idx_to)+v0(idx_fr).*Delta_v_u(idx_to)+1/4*(Delta_v_l(idx_fr)+Delta_v_u(idx_to)).^2];
 
     Constraints = [Constraints, 
-                    Delta_vv_l_uu-Delta_v_u(idx_fr).*v0(idx_to)-v0(idx_fr).*Delta_v_u(idx_to)+1/4*(Delta_v_u(idx_fr)-Delta_v_u(idx_to)).^2<=0,
-                    Delta_vv_l_ll-Delta_v_l(idx_fr).*v0(idx_to)-v0(idx_fr).*Delta_v_l(idx_to)+1/4*(Delta_v_l(idx_fr)-Delta_v_l(idx_to)).^2<=0,
-                    Delta_vv_l_ul-Delta_v_u(idx_fr).*v0(idx_to)-v0(idx_fr).*Delta_v_l(idx_to)+1/4*(Delta_v_u(idx_fr)-Delta_v_l(idx_to)).^2<=0,
-                    Delta_vv_l_lu-Delta_v_l(idx_fr).*v0(idx_to)-v0(idx_fr).*Delta_v_u(idx_to)+1/4*(Delta_v_l(idx_fr)-Delta_v_u(idx_to)).^2<=0];
+                    Delta_vv_l_uu<=Delta_v_u(idx_fr).*v0(idx_to)+v0(idx_fr).*Delta_v_u(idx_to)-1/4*(Delta_v_u(idx_fr)-Delta_v_u(idx_to)).^2<=0,
+                    Delta_vv_l_ll<=Delta_v_l(idx_fr).*v0(idx_to)+v0(idx_fr).*Delta_v_l(idx_to)-1/4*(Delta_v_l(idx_fr)-Delta_v_l(idx_to)).^2<=0,
+                    Delta_vv_l_ul<=Delta_v_u(idx_fr).*v0(idx_to)+v0(idx_fr).*Delta_v_l(idx_to)-1/4*(Delta_v_u(idx_fr)-Delta_v_l(idx_to)).^2<=0,
+                    Delta_vv_l_lu<=Delta_v_l(idx_fr).*v0(idx_to)+v0(idx_fr).*Delta_v_u(idx_to)-1/4*(Delta_v_l(idx_fr)-Delta_v_u(idx_to)).^2<=0];
     Constraints = [Constraints, 
         Delta_cos_u_u+sin(Phi0).*Delta_Phi_u-1/2*(Delta_Phi_u).^2>=0,
         Delta_cos_u_l+sin(Phi0).*Delta_Phi_l-1/2*(Delta_Phi_l).^2>=0,
@@ -400,8 +358,9 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
         slack_line -margin_opt>=0,
         gamma_opt - margin_opt>=0,%>=0
         pg_opt+alpha0.*delta_u-pg_opt_u<=0]; %<=0 
+    Constraints = [Constraints,pg_opt+alpha0.*delta0+Dalpha_opt.*delta0+alpha0.*Ddelta_u+1/4*(Ddelta_u+Dalpha_opt).^2 <=pg_opt_u]
     Constraints = [Constraints,gencost(:,1)'*(pg_opt_u*mpc.baseMVA).^2+gencost(:,2)'*(pg_opt_u*mpc.baseMVA)+sum(gencost(:,3))-cost_opt<=0];%<=0
-
+    
     if option == 'margin' && isempty(target_mpc)
         g_add1 = pg_opt;
         g_add2 = pl_opt;
@@ -451,8 +410,7 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
         Constraints = [Constraints,margin_opt>=0];
         Constraints = [Constraints,gamma_opt>=gamma0];
         Objective = cost_opt;
-        options = sdpsettings('solver', 'gurobi','gurobi.FeasibilityTol', 1e-8,...
-            'gurobi.OptimalityTol', 1e-8,'gurobi.IntFeasTol', 1e-8);
+        options = sdpsettings('solver', 'gurobi');
         result = optimize(Constraints, Objective, options);
         rdelta_u = value(delta_u);
         rpg_opt = value(pg_opt);

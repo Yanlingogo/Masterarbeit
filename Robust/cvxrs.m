@@ -61,8 +61,6 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     pl0 = bus(idx_load,PD)/mpc.baseMVA;
     ql0 = bus(idx_load,QD)/mpc.baseMVA;
 
-    %ppq0 = bus(idx_pq,PD)/mpc.baseMVA; 
-    %qpq0 = bus(idx_pq,QD)/mpc.baseMVA;
     %get the injection at each bus
     p_inj0 = Cg*(pg0+alpha0*delta0)-Cl*pl0;
     q_inj0 = Cg*qg0-Cl*ql0;
@@ -72,8 +70,6 @@ function [mpc, sanity_check] = cvxrs(mpc,option,target_mpc,phase_shift)
     vmin = bus(:,VMIN);
     Phi_max = deg2rad(branch(:,ANGMAX));
     Phi_min = deg2rad(branch(:,ANGMIN));
-%     Phi_min =  -1.0472*eye(9,1);
-%     Phi_max =  1.0472*eye(9,1);
     pg_max = (gen(:,GEN_STATUS).*gen(:,PMAX))/mpc.baseMVA;
     pg_min = (gen(:,GEN_STATUS).*gen(:,PMIN))/mpc.baseMVA;
     qg_max = (gen(:,GEN_STATUS).*gen(:,QMAX))/mpc.baseMVA;
