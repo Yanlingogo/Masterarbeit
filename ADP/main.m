@@ -18,12 +18,13 @@ QC2MIN, QC2MAX, RAMP_AGC, RAMP_10, RAMP_30, RAMP_Q, APF] = idx_gen;
 mpc = runpf(case18);
 %mpc = ext2int(loadcase('case18'));
 mpc = ext2int(mpc);
-mpc.gen(:,PMIN) = -15;
+mpc.gen(:,PMAX) = inf;
+mpc.gen(:,PMIN) = -inf;
 
 % mpc,branch(:,RATE_A) = 
 % add Generators in mpc
-Info_gen = [6	1.63	0.0654	2	-5	1.025	1	1	10	-3	0	0	0	0	0	0	0	0	0	0	0;
-	        16	0.85	-0.1095	5	-5	1.025	1	1	15	-5	0	0	0	0	0	0	0	0	0	0	0;];
+Info_gen = [6	1.63	0.0654	10	-5	1.025	1	1	10	-3	0	0	0	0	0	0	0	0	0	0	0;
+	        16	0.85	-0.1095	10	-5	1.025	1	1	5	-3	0	0	0	0	0	0	0	0	0	0	0;];
 mpc.gen = vertcat(mpc.gen,Info_gen);
 
 id_bus      = mpc.bus(:,BUS_I);
@@ -126,7 +127,7 @@ ubg = vertcat(vmax, Pgmax, Qgmax, zeros(Npf+Nlimit+2*Ngen+1-2*Nslack,1));
 %% solver options
 import casadi.*
 % tolerance
-tol        = 1e-8;
+tol        = 1e-6;
 options.ipopt.tol             = tol;
 options.ipopt.constr_viol_tol = tol;
 options.ipopt.compl_inf_tol   = tol;
@@ -135,7 +136,7 @@ options.ipopt.acceptable_constr_viol_tol = tol;
 options.ipopt.print_level = 5;
 % options.ipopt.grad_f = fgrad;
 options.print_time        = 5;
-options.ipopt.max_iter    = 1000;
+options.ipopt.max_iter    = 100;
 
 Nx         =  numel(x0);
 x_SX       =   SX.sym('x',Nx,1);
@@ -164,15 +165,16 @@ for c1 = -1:1
         end
     end
 end
-%% discretization
+%% discretization at x-axis
 s_pmin = min(Points(:,1));
 s_pmax = max(Points(:,1));
-s_p_step = linspace(s_pmin,s_pmax,30);
-gridding= zeros(30,2); % store the solution under gridding
+s_p_step = linspace(s_pmin,s_pmax,22);
+s_p_step = s_p_step(2:end-1);
+gridding_p= zeros(20,2); % store the solution under gridding
 eq_sp = @(x) obj_p(x);
 g_ext = @(x)vertcat(g(x),eq_sp(x));
 for c3 = [-1, 1]
-    for i = 1:30
+    for i = 1:20
         lbg_ext = vertcat(lbg,s_p_step(i));
         ubg_ext = vertcat(ubg,s_p_step(i));
         f_grid = @(x)c3*obj_q(x); % q_{k,l} of PCC
@@ -186,17 +188,46 @@ for c3 = [-1, 1]
         xopt2= full(sol.x);
         obj_q_opt = obj_q(xopt2);
         if c3 == -1
-            gridding(i,1) = obj_q_opt;
+            gridding_p(i,1) = obj_q_opt;
         else
-            gridding(i,2) = obj_q_opt;
+            gridding_p(i,2) = obj_q_opt;
         end
     end
 end
-
+%% discretization at y-axis
+s_qmin = min(Points(:,2));
+s_qmax = max(Points(:,2));
+s_q_step = linspace(s_qmin,s_qmax,22);
+s_q_step = s_q_step(2:end-1);
+gridding_q= zeros(20,2); % store the solution under gridding
+eq_sq = @(x) obj_q(x);
+g_ext = @(x)vertcat(g(x),eq_sq(x));
+for c3 = [-1, 1]
+    for i = 1:20
+        lbg_ext = vertcat(lbg,s_q_step(i));
+        ubg_ext = vertcat(ubg,s_q_step(i));
+        f_grid = @(x)c3*obj_p(x); % p_{k,l} of PCC
+        x_SX = SX.sym('x',Nx,1);
+        constraint_grid = g_ext(x_SX);
+        objective = f_grid(x_SX);
+        nlp = struct('x',x_SX,'f',objective,'g',constraint_grid);
+        S   = nlpsol('solver','ipopt', nlp,options);
+        sol = S('x0', x0,'lbg', lbg_ext,'ubg', ubg_ext,...
+                'lbx', lbx, 'ubx', ubx);
+        xopt2= full(sol.x);
+        obj_p_opt = obj_p(xopt2);
+        if c3 == -1
+            gridding_q(i,1) = obj_p_opt;
+        else
+            gridding_q(i,2) = obj_p_opt;
+        end
+    end
+end
 %% output
 plot(Points(:,1),Points(:,2),'rx');
 hold on;
-Points_tot = [Points;[s_p_step';s_p_step'],[gridding(:,1);gridding(:,2)]];
+Points_tot = [Points;[s_p_step';s_p_step'],[gridding_p(:,1);gridding_p(:,2)];...
+    [gridding_q(:,1);gridding_q(:,2)],[s_q_step';s_q_step']];
 centroid = mean(Points_tot, 1);
 angles = atan2(Points_tot(:,2) - centroid(2), Points_tot(:,1) - centroid(1));
 [~, order] = sort(angles);
@@ -208,4 +239,3 @@ title('Feasible Region of Slack Bus'); % 图像标题
 grid on;            % 显示网格
 
 %% cost plot
-s
