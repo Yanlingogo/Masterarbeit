@@ -1,0 +1,8 @@
+function [bound] = create_bound_PQ(P, Q, alpha,slack_gen)
+    logi = true(size(P,1),1);
+    logi(slack_gen) = false;
+    bound1 = -1*alpha*Q(logi) - P(logi);
+    bound2 = alpha*Q(logi) - P(logi);
+    bound = vertcat(bound1,bound2); 
+end
+

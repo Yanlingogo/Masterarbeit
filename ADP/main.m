@@ -15,10 +15,16 @@ MU_PMAX, MU_PMIN, MU_QMAX, MU_QMIN, PC1, PC2, QC1MIN, QC1MAX, ...
 QC2MIN, QC2MAX, RAMP_AGC, RAMP_10, RAMP_30, RAMP_Q, APF] = idx_gen;
 % cost idx
 [PW_LINEAR, POLYNOMIAL, MODEL, STARTUP, SHUTDOWN, NCOST, COST] = idx_cost;
+mpc = runpf(case18);
+%mpc = ext2int(loadcase('case18'));
+mpc = ext2int(mpc);
+mpc.gen(:,PMIN) = -15;
 
-mpc = loadcase('case33mg');
-%mpc = loadcase('case69');
-mpc         = runopf(mpc);
+% mpc,branch(:,RATE_A) = 
+% add Generators in mpc
+Info_gen = [6	1.63	0.0654	2	-5	1.025	1	1	10	-3	0	0	0	0	0	0	0	0	0	0	0;
+	        16	0.85	-0.1095	5	-5	1.025	1	1	15	-5	0	0	0	0	0	0	0	0	0	0	0;];
+mpc.gen = vertcat(mpc.gen,Info_gen);
 
 id_bus      = mpc.bus(:,BUS_I);
 id_gen      = mpc.gen(:,GEN_BUS);
@@ -69,9 +75,11 @@ from_bus       = mpc.branch(:, F_BUS);                           %% list of "fro
 to_bus         = mpc.branch(:, T_BUS);  
 Cf             = sparse(1:Nbranch,from_bus,ones(Nbranch,1),Nbranch,Nbus);
 Ct             = sparse(1:Nbranch,to_bus,ones(Nbranch,1),Nbranch,Nbus);
+C              = Cf - Ct;
 % slack
-slack_bus_entries =  find(mpc.bus(:,BUS_TYPE) == REF);
-idx_ref = entries_pf{2}(slack_bus_entries);
+id_slack =  find(mpc.bus(:,BUS_TYPE) == REF);
+Nslack = numel(id_slack);
+idx_ref = entries_pf{2}(id_slack);
 eq_ref = @(x)x(idx_ref);
 % power flow equation
 eq_pf          = @(x)create_local_power_flow_equation_pol(x(entries_pf{1}),x(entries_pf{2}),...
@@ -80,16 +88,41 @@ test_pf        = eq_pf(x0);
 Npf            = numel(eq_pf(x0));
 % upper & lower bound for voltage magnitude
 ineq_voltage   = @(x) x(entries_pf{1});
+% upper & lower bound for generator 
+ineq_genp      = @(x) x(entries_pf{3}(1:end)); 
+ineq_genq      = @(x) x(entries_pf{4}(1:end));
+% bound between pg_k and qg_k
+alpha = 0.8;  % based on experience
+id_gen_nslack = find(id_gen ~= id_slack);
+id_gen_slack = find(id_gen == id_slack);
+ineq_genpq = @(x)create_bound_PQ(x(entries_pf{3}),x(entries_pf{4}),alpha,id_gen_nslack,id_gen_slack);
 % line Limit
-ineq_line = [];
-idx_limit = [];
-Nlimit   = 0;
-g   = @(x)vertcat(eq_pf(x),eq_ref(x));
+if any(Fmax)
+    ineq_line = @(x)create_local_branch_limit_rec(x(entries_pf{1}),...
+        x(entries_pf{2}), Gf, Bf, Gt, Bt, Fmax, from_bus,to_bus);
+    idx_limit = find(Fmax);
+    Nlimit = numel(ineq_line(x0));
+    g = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),ineq_line(x),ineq_genpq(x),eq_pf(x),eq_ref(x));
+else
+    ineq_line = [];
+    idx_limit = [];
+    Nlimit   = 0;
+    g   = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),ineq_genpq(x),eq_pf(x),eq_ref(x));
+end
+%% linie power flow for PCC 
+% find slack bus and connected bus
+connected_buses = unique([mpc.branch(mpc.branch(:, 1) == id_slack, 2);...
+    mpc.branch(mpc.branch(:, 2) == id_slack, 1)]);
+id_cline = find(mpc.branch(:, 1) == id_slack | mpc.branch(:, 2) == id_slack); % connecting line
+% feasible P Q at connecting line
+obj_p = @(x)create_coupling_branch_limit_p(x(entries_pf{1}),...
+     x(entries_pf{2}),id_slack,connected_buses,id_cline, Gf, Bf, Gt, Bt);
+obj_q = @(x)create_coupling_branch_limit_q(x(entries_pf{1}),...
+     x(entries_pf{2}),id_slack,connected_buses,id_cline, Gf, Bf, Gt, Bt);
 
-% lbx = vertcat(vmin,)
-% ubx = vertcat(vmax,)
-lbg = vertcat(vmin, -inf*ones(Nlimit,1), zeros(Npf+1,1));
-ubg = vertcat(vmax, zeros(Npf+Nlimit+1,1));
+lbg = vertcat(vmin, Pgmin, Qgmin, -inf*ones(Nlimit+2*Ngen-2*Nslack,1), zeros(Npf+1,1));
+ubg = vertcat(vmax, Pgmax, Qgmax, zeros(Npf+Nlimit+2*Ngen+1-2*Nslack,1));
+% based on eqauation(19): but no line limits,
 %% solver options
 import casadi.*
 % tolerance
@@ -107,21 +140,72 @@ options.ipopt.max_iter    = 1000;
 Nx         =  numel(x0);
 x_SX       =   SX.sym('x',Nx,1);
 constraint = g(x_SX);
+%% sampling points
 i = 1;
 Points = zeros(8,2);
+obj_values = zeros(8,1);
 for c1 = -1:1
     for c2 = -1:1
         if c1== 0 && c2 ==0
             continue;
         else
-            f   = @(x) c1*x(entries{3}(1))+c2*x(entries{4}(1));
+            f_samp   = @(x)c1*obj_p(x)+c2*obj_q(x); % p_{k,l}, q_{k,l} of PCC
+            objective = f_samp(x_SX);
             nlp = struct('x',x_SX,'f',objective,'g',constraint);
             S   = nlpsol('solver','ipopt', nlp,options);
             sol = S('x0', x0,'lbg', lbg,'ubg', ubg,...
                     'lbx', lbx, 'ubx', ubx);
             xopt= full(sol.x);
-            Points(i,:) = [xopt(2*Nbus+1),xopt(2*Nbus+Ngen)];
+            obj_values(i)= full(sol.f);
+            obj_p_opt = obj_p(xopt);
+            obj_q_opt = obj_q(xopt);
+            Points(i,:) = [obj_p_opt,obj_q_opt];
             i = i+1;
         end
     end
 end
+%% discretization
+s_pmin = min(Points(:,1));
+s_pmax = max(Points(:,1));
+s_p_step = linspace(s_pmin,s_pmax,30);
+gridding= zeros(30,2); % store the solution under gridding
+eq_sp = @(x) obj_p(x);
+g_ext = @(x)vertcat(g(x),eq_sp(x));
+for c3 = [-1, 1]
+    for i = 1:30
+        lbg_ext = vertcat(lbg,s_p_step(i));
+        ubg_ext = vertcat(ubg,s_p_step(i));
+        f_grid = @(x)c3*obj_q(x); % q_{k,l} of PCC
+        x_SX = SX.sym('x',Nx,1);
+        constraint_grid = g_ext(x_SX);
+        objective = f_grid(x_SX);
+        nlp = struct('x',x_SX,'f',objective,'g',constraint_grid);
+        S   = nlpsol('solver','ipopt', nlp,options);
+        sol = S('x0', x0,'lbg', lbg_ext,'ubg', ubg_ext,...
+                'lbx', lbx, 'ubx', ubx);
+        xopt2= full(sol.x);
+        obj_q_opt = obj_q(xopt2);
+        if c3 == -1
+            gridding(i,1) = obj_q_opt;
+        else
+            gridding(i,2) = obj_q_opt;
+        end
+    end
+end
+
+%% output
+plot(Points(:,1),Points(:,2),'rx');
+hold on;
+Points_tot = [Points;[s_p_step';s_p_step'],[gridding(:,1);gridding(:,2)]];
+centroid = mean(Points_tot, 1);
+angles = atan2(Points_tot(:,2) - centroid(2), Points_tot(:,1) - centroid(1));
+[~, order] = sort(angles);
+sortedPoints = Points_tot(order, :);
+plot([sortedPoints(:,1); sortedPoints(1,1)], [sortedPoints(:,2); sortedPoints(1,2)], '-bo');
+xlabel('P/p.u.');   % X 轴标签
+ylabel('Q/p.u.');   % Y 轴标签
+title('Feasible Region of Slack Bus'); % 图像标题
+grid on;            % 显示网格
+
+%% cost plot
+s
