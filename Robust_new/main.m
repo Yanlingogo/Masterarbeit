@@ -1,28 +1,30 @@
-entries_pf{1} = 1:Nbus; 
-entries_pf{2} = 1:Nbus;
-entries_pf{3} = 1:Nbus;
-entries_pf{4} = 1:Nbus;
-entries_pf{5} = 1:Nbranch;
-entries_pf{6} = 1:Nbranch;
-entries_pf{7} = 1:Nbranch;
-entries_pf{8} = 1:Nbranch;
-entries_pf{9} = 1:4;
-entries_pf{10} = 1:Nbus; %g_u_pinj
-entries_pf{11} = 1:Nbus;
-entries_pf{12} = 1:Nbus;
-entries_pf{13} = 1:Nbus;
-entries_pf{14} = 1:Nbranch; % g_u_vvsin
-entries_pf{15} = 1:Nbranch;
-entries_pf{16} = 1:Nbranch;
-entries_pf{17} = 1:Nbranch;
-entries_pf{18} = 1:Nbus; % g_u_vv
-entries_pf{19} = 1:Nbus;
-entries_pf{20} = 1:Nbranch;
-entries_pf{21} = 1:Nbranch;
-entries_pf{22} = 1:Nbranch;
-entries_pf{23} = 1:Nbranch;
-entries_pf{24} = 1:Nbus;
-entries_pf{25} = 1:Nbus; % Psi_l_vv
+mpc = loadcase('case9');
 
+opts = mpoption;
+opts.opf.violation   = 1e-12;
+opts.mips.costtol    = 1e-12;
+opts.mips.gradtol    = 1e-12;
+opts.mips.comptol    = 1e-12;
+opts.opf.ignore_angle_lim = true;
+opts.out.all = 0; 
 
+mpc = runopf(mpc,opts);
 
+id_load = find((mpc.bus(:,PD).^2+mpc.bus(:,QD).^2) ~= 0);
+pl0 = mpc.bus(id_load,3)/mpc.baseMVA;
+ql0 = mpc.bus(id_load,4)/mpc.baseMVA;
+Sigmap0 = diag(pl0.^2);
+Sigmaq0 = diag(ql0.^2);
+gamma_0 = 0;
+mpc.uncertainty.Sigmap = Sigmap0; 
+mpc.uncertainty.Sigmaq = Sigmaq0;
+mpc.uncertainty.gamma0 = gamma_0; 
+
+mpc.gen(:,end+1) = [0 0.5 0.5]; % 分配slack bus 不平衡量给PV节点的比例
+mpc.gen(:,10) = -mpc.gen(:,9)*0.2; % PV节点PMIN
+mpc.bus(:,9) = deg2rad(mpc.bus(:,9)); % 角度转弧度
+
+idx_slack = find(mpc.bus(:,2)==3);
+plot_rng = [-2 3 -1 1]; %画图范围
+resolution = 100; % 画图分辨率
+contour_plot(mpc,idx_slack,plot_rng,resolution);

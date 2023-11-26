@@ -15,17 +15,17 @@ MU_PMAX, MU_PMIN, MU_QMAX, MU_QMIN, PC1, PC2, QC1MIN, QC1MAX, ...
 QC2MIN, QC2MAX, RAMP_AGC, RAMP_10, RAMP_30, RAMP_Q, APF] = idx_gen;
 % cost idx
 [PW_LINEAR, POLYNOMIAL, MODEL, STARTUP, SHUTDOWN, NCOST, COST] = idx_cost;
-mpc = runpf(case18);
+mpc = runpf(case9);
 %mpc = ext2int(loadcase('case18'));
 mpc = ext2int(mpc);
-mpc.gen(:,PMAX) = inf;
-mpc.gen(:,PMIN) = -inf;
+% mpc.gen(:,PMAX) = inf;
+% mpc.gen(:,PMIN) = -inf;
 
 % mpc,branch(:,RATE_A) = 
 % add Generators in mpc
-Info_gen = [6	1.63	0.0654	10	-5	1.025	1	1	10	-3	0	0	0	0	0	0	0	0	0	0	0;
-	        16	0.85	-0.1095	10	-5	1.025	1	1	5	-3	0	0	0	0	0	0	0	0	0	0	0;];
-mpc.gen = vertcat(mpc.gen,Info_gen);
+% Info_gen = [6	1.63	0.0654	10	-5	1.025	1	1	10	-3	0	0	0	0	0	0	0	0	0	0	0;
+% 	        16	0.85	-0.1095	10	-5	1.025	1	1	5	-3	0	0	0	0	0	0	0	0	0	0	0;];
+% mpc.gen = vertcat(mpc.gen,Info_gen);
 
 id_bus      = mpc.bus(:,BUS_I);
 id_gen      = mpc.gen(:,GEN_BUS);
@@ -96,19 +96,21 @@ ineq_genq      = @(x) x(entries_pf{4}(1:end));
 alpha = 0.8;  % based on experience
 id_gen_nslack = find(id_gen ~= id_slack);
 id_gen_slack = find(id_gen == id_slack);
-ineq_genpq = @(x)create_bound_PQ(x(entries_pf{3}),x(entries_pf{4}),alpha,id_gen_nslack,id_gen_slack);
+%ineq_genpq = @(x)create_bound_PQ(x(entries_pf{3}),x(entries_pf{4}),alpha,id_gen_nslack,id_gen_slack);
 % line Limit
 if any(Fmax)
     ineq_line = @(x)create_local_branch_limit_rec(x(entries_pf{1}),...
         x(entries_pf{2}), Gf, Bf, Gt, Bt, Fmax, from_bus,to_bus);
     idx_limit = find(Fmax);
     Nlimit = numel(ineq_line(x0));
-    g = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),ineq_line(x),ineq_genpq(x),eq_pf(x),eq_ref(x));
+    %g = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),ineq_line(x),ineq_genpq(x),eq_pf(x),eq_ref(x));
+    g = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),ineq_line(x),eq_pf(x),eq_ref(x)); %without generator bound
 else
     ineq_line = [];
     idx_limit = [];
     Nlimit   = 0;
-    g   = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),ineq_genpq(x),eq_pf(x),eq_ref(x));
+    %g   = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),ineq_genpq(x),eq_pf(x),eq_ref(x));
+    g   = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),eq_pf(x),eq_ref(x));
 end
 %% linie power flow for PCC 
 % find slack bus and connected bus
@@ -121,8 +123,10 @@ obj_p = @(x)create_coupling_branch_limit_p(x(entries_pf{1}),...
 obj_q = @(x)create_coupling_branch_limit_q(x(entries_pf{1}),...
      x(entries_pf{2}),id_slack,connected_buses,id_cline, Gf, Bf, Gt, Bt);
 
-lbg = vertcat(vmin, Pgmin, Qgmin, -inf*ones(Nlimit+2*Ngen-2*Nslack,1), zeros(Npf+1,1));
-ubg = vertcat(vmax, Pgmax, Qgmax, zeros(Npf+Nlimit+2*Ngen+1-2*Nslack,1));
+%lbg = vertcat(vmin, Pgmin, Qgmin, -inf*ones(Nlimit+2*Ngen-2*Nslack,1), zeros(Npf+1,1));
+lbg = vertcat(vmin, Pgmin, Qgmin, -inf*ones(Nlimit,1), zeros(Npf+1,1));
+%ubg = vertcat(vmax, Pgmax, Qgmax, zeros(Npf+Nlimit+2*Ngen+1-2*Nslack,1));
+ubg = vertcat(vmax, Pgmax, Qgmax, zeros(Npf+Nlimit+1,1));
 % based on eqauation(19): but no line limits,
 %% solver options
 import casadi.*
