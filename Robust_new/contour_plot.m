@@ -1,4 +1,4 @@
-function [] = plot_bus(exact_mpc,plot_bus,plot_rng,resolution)
+function [] = contour_plot(exact_mpc,plot_bus,plot_rng,resolution)
 %% Get system data
 mpc=exact_mpc;
 % mpc=runopf(mpc,mpoption('verbose',0,'out.all',0));

@@ -37,7 +37,7 @@ function [margin_opt] = cvxr(mpc,mpc_target)
     idx_to = branch(:,T_BUS);
     id_gen = gen(:,GEN_BUS);
     %idx_load mentioned before
-    idx_pq = bus_type == 1;
+    idx_pq = find(bus_type == 1);
     onoff_pq = zeros(Nbus,1); onoff_pq(idx_pq) = 1;
 
     gencost = mpc.gencost(:,COST:end);
@@ -57,7 +57,7 @@ function [margin_opt] = cvxr(mpc,mpc_target)
     qg0 = (gen(:,GEN_STATUS).*gen(:,QG))/mpc.baseMVA;
     pl0 = bus(idx_load,PD)/mpc.baseMVA;
     ql0 = bus(idx_load,QD)/mpc.baseMVA;
-    p_inj0 = Cg*(pg0+alpha0*delta0)-Cl*pl0;
+    p_inj0 = Cg*pg0-Cl*pl0;
     q_inj0 = Cg*qg0-Cl*ql0;
     % power_factor = ql0./(pl0+1e-3); 注意考虑这三项是否有用
     % limitation of the network
@@ -69,39 +69,41 @@ function [margin_opt] = cvxr(mpc,mpc_target)
     pg_min = (gen(:,GEN_STATUS).*gen(:,PMIN))/mpc.baseMVA;
     qg_max = (gen(:,GEN_STATUS).*gen(:,QMAX))/mpc.baseMVA;
     qg_min = (gen(:,GEN_STATUS).*gen(:,QMIN))/mpc.baseMVA;
+    alpha_p = gen(:,end-1);
+    alpha_q = gen(:,end);
     s_line_max = branch(:,RATE_A)/mpc.baseMVA;
 
-    Sigma0 = mpc.uncertainty.Sigma0; %有功无功的不确定性都要考虑
+    Sigma0 = mpc.uncertainty.Sigma; 
     gamma0 = mpc.uncertainty.gamma0;
     % Jacobian 
-    J1 = -diag(v0(idx_fr).*v0(idx_to).*sin(E'*theta0))*E';
+    J1 = -diag(v0(idx_fr).*v0(idx_to).*sin(E'*theta0))*E'; %Nbranch*Nbus
     J2 = diag(v0(idx_to).*cos(E'*theta0))*E_fr'+diag(v0(idx_fr).*cos(E'*theta0))*E_to';
     J3 = diag(v0(idx_fr).*v0(idx_to).*cos(E'*theta0))*E';
     J4 = diag(v0(idx_to).*sin(E'*theta0))*E_fr'+diag(v0(idx_fr).*sin(E'*theta0))*E_to';
     D = diag(v0);
-    J_psi0 = [zeros(2*Nbus,2*Nbus);
-        J1, J2;
-        J3, J4;
-        zeros(Nbus,Nbus), 2*D];% (3*Nbus+2*Nbranch)*(2*Nbus)考虑全部节点，对应全部满足有功无功等式约束
+    J_psi0 = [J1(:,idx_pq), J2(:,idx_pq);
+              J3(:,idx_pq), J4(:,idx_pq);
+              zeros(Nbus,Npq), 2*D(:,idx_pq)];% (Nbus+2Nbranch)*(2Npq)
     % original value of residues and basis function
-    g_vvcos0 = v0(idx_fr).*v0(idx_to).*cos(Phi0) - onoff_pq(idx_fr).*v0(idx_fr).*v0(idx_to).*cos(Phi0)...
+    %g_vvcos0 = v0(idx_fr).*v0(idx_to).*cos(Phi0) - onoff_pq(idx_fr).*v0(idx_fr).*v0(idx_to).*cos(Phi0)...
         - v0(idx_fr).*onoff_pq(idx_to).*v0(idx_to).*cos(Phi0) + v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi0;
-    g_vvsin0 = v0(idx_fr).*v0(idx_to).*sin(Phi0) - onoff_pq(idx_fr).*v0(idx_fr).*v0(idx_to).*sin(Phi0)...
+    %g_vvsin0 = v0(idx_fr).*v0(idx_to).*sin(Phi0) - onoff_pq(idx_fr).*v0(idx_fr).*v0(idx_to).*sin(Phi0)...
         - v0(idx_fr).*onoff_pq(idx_to).*v0(idx_to).*sin(Phi0) - v0(idx_fr).*v0(idx_to).*cos(Phi0).*Phi0;
-    g_vv0 = v0.^2-2*onoff_pq.*v0.*v0;
+    %g_vv0 = v0.^2-2*onoff_pq.*v0.*v0;
     Psi_vvcos0 = v0(idx_fr).*v0(idx_to).*cos(Phi0);
     Psi_vvsin0 = v0(idx_fr).*v0(idx_to).*sin(Phi0);
     Psi_vv0 = v0.^2;
 
-    [Y,Yf,Yt,M,M_line] = makeYbus_cvxr(mpc,phase_shift); % M: 2Nbus*(3Nbus+2Nbranch)
-    R = -[Cl,zeros(size(Cl));zeros(size(Cl),Cl)];
-    J_inv_M = (M*J_psi0)\M; % 2Nbus*(3Nbus+2Nbranch) % 
-    J_inv_R = (M*J_psi0)\R;
-    C = [E' zeros(Nbranch,Nbus);
-         zeros(Nbus) eye(Nbus);];% (Nbranch+Nbus)*2Nbus
-    A = [eye(Nbranch+Nbus)]*C; % (Nbranch+Nbus)*(2Nbus)
+    [~,~,~,M,M_line] = makeYbus_cvxr(mpc,phase_shift); % M: 2Nbus*(3Nbus+2Nbranch)
+    M_eq = M([idx_pq',idx_pq'+Nbus],2*Nbus+1:end);% 2Npq*(Nbus+2Nbranch)
+    R = -[Cl(idx_pq,:),zeros(size(Cl(idx_pq,:)));zeros(size(Cl(idx_pq,:))),Cl(idx_pq,:)];% 2Npq*2Nload
+    J_inv_M = (M_eq*J_psi0)\M_eq; % 2Npq*(Nbus+2Nbranch) 
+    J_inv_R = (M_eq*J_psi0)\R; % 2Npq*2Nload
+    C = [E(idx_pq,:)' zeros(Nbranch,Npq);
+         zeros(Npq) eye(Npq);];% (Nbranch+Npq)*2Npq
+    A = [eye(Nbranch+Npq)]*C; % (Nbranch+Nbus)*(2Npq)
     K = -A*J_inv_M; % (2Nbranch+2Nbus)*(3Nbus+2Nbranch)
-    T = A*J_inv_R;
+    T = A*J_inv_R; % (Nbranch+Nbus)*2Nload
 
     K_plus  = max(K,zeros(size(K))).*(K>0);
     K_minus = min(K,zeros(size(K))).*(K<0);
@@ -111,7 +113,7 @@ function [margin_opt] = cvxr(mpc,mpc_target)
     M_line_plus  = max(M_line, zeros(size(M_line))).*(M_line>0);
     M_line_minus = min(M_line, zeros(size(M_line))).*(M_line<0);
 % meaning of zeta and xi, idx_pvs, power_factor ?
-    zeta = sqrt(sum((Cl(idx_pvs,:)*diag(power_factor)*chol(Sigma0,'upper')).^2,2));
+    %zeta = sqrt(sum((Cl(idx_pvs,:)*diag(power_factor)*chol(Sigma0,'upper')).^2,2));
     %xi = sqrt(sum((K(:,1:2*Nbus)*[Cl;Cl]*chol(Sigma0,'upper')).^2,2));
     xi0 = -T*[pl0;ql0];
     xi_gamma = sqrt(sum((-T*chol(Sigma0,'upper')).^2,2));
@@ -150,19 +152,20 @@ function [margin_opt] = cvxr(mpc,mpc_target)
     
     entries{28} = 1:2*Ngen;      %pg_opt, qg_opt
     entries{29} = 1:2*Nload;     %pl_opt, ql_opt
-    entries{30} = 5;             %gamma_opt, slack_pq, slack_qg, slack_line, margin_opt
+    entries{30} = 1:5;             %gamma_opt, slack_pq, slack_qg, slack_line, margin_opt
     %% lower & upper bounds for the variables 
-    lbx = [vmin;vmin;vmin-v0;vmin-v0;Phi_min;Phi_min;Phi_min-Phi0;Phi_max-Phi0;-inf(8*Nbus+29*Nbranch+2*Ngen+2*load+5,1)];
-    ubx = [vmax;vmax;vmax-v0;vmax-v0;Phi_max;Phi_max;Phi_min-Phi0;Phi_max-Phi0; inf(8*Nbus+29*Nbranch+2*Ngen+2*load+5,1)];
+    lbx = [vmin;vmin;vmin-v0;vmin-v0;Phi_min;Phi_min;Phi_min-Phi0;Phi_max-Phi0;-inf(8*Nbus+28*Nbranch+2*Ngen+2*Nload+5,1)];
+    ubx = [vmax;vmax;vmax-v0;vmax-v0;Phi_max;Phi_max;Phi_min-Phi0;Phi_max-Phi0; inf(8*Nbus+28*Nbranch+2*Ngen+2*Nload+5,1)];
     %% initial state x0
-    x0 = vertcat(v0,v0,zeros(2*Nbus,1),Phi0,Phi0,zeros(8*Nbus+30*Nbranch),pg0,qg0,pl0,ql0,zeros(5,1));
+    x0 = vertcat(v0,v0,zeros(2*Nbus,1),Phi0,Phi0,zeros(8*Nbus+30*Nbranch,1),pg0,qg0,pl0,ql0,zeros(5,1));
     %% equality/inequality constraints
     % eq
     eq_cons = @(x) create_eq_constraints(v0,Phi0,id_gen,x(entries{1}),x(entries{2}),...
         x(entries{3}),x(entries{4}),x(entries{5}),x(entries{6}),x(entries{7}),x(entries{8})); % = 0
     % constraints from target network(equality constraints)
-    target1 = @(x) x(entries{28}(idx_slack))-mpc_target.gen(idx_sgen,PG); % ==0
-    target2 = @(x) x(entries{28}(idx_slack+Nbus))-mpc_target.gen(idx_sgen,QG); %==0
+    eq_target = @(x) create_eq_target(x(entries{28}(1:Ngen)),x(entries{28}(Ngen+1:2*Ngen)),...
+        x(entries{29}(1:Nload)),x(entries{29}(Nload+1:2*Nload)),x(entries{1}),mpc,idx_load,id_gen);
+
     % ineq/ convex restriction 函数参数需要一一对应
     ineq_vv = @(x) create_ineq_vv(x(entries{25}(1:Nbranch)),x(entries{25}(Nbranch+1:2*Nbranch)),x(entries{25}(2*Nbranch+1:3*Nbranch)),x(entries{25}(3*Nbranch+1:4*Nbranch)),...
         x(entries{25}(4*Nbranch+1:5*Nbranch)),x(entries{25}(5*Nbranch+1:6*Nbranch)),x(entries{25}(6*Nbranch+1:7*Nbranch)),x(entries{25}(7*Nbranch+1:8*Nbranch)),...
@@ -177,13 +180,16 @@ function [margin_opt] = cvxr(mpc,mpc_target)
         x(entries{25}(4*Nbranch+1:5*Nbranch)),x(entries{25}(5*Nbranch+1:6*Nbranch)),x(entries{25}(6*Nbranch+1:7*Nbranch)),x(entries{25}(7*Nbranch+1:8*Nbranch)),...
         x(entries{26}(1:Nbranch)),x(entries{26}(Nbranch+1:2*Nbranch)),x(entries{26}(2*Nbranch+1:3*Nbranch)),x(entries{26}(3*Nbranch+1:4*Nbranch)),...
         x(entries{26}(4*Nbranch+1:5*Nbranch)),x(entries{26}(5*Nbranch+1:6*Nbranch)),x(entries{26}(6*Nbranch+1:7*Nbranch)),x(entries{26}(7*Nbranch+1:8*Nbranch)),...
-        Psi_vvcos0,Psi_vvsin0,Phi0,v0,idx_fr,idx_to);
+        x(entries{1}),x(entries{2}),x(entries{5}),x(entries{6}),Psi_vvcos0,Psi_vvsin0,Phi0,v0,idx_fr,idx_to,onoff_pq);
 
     ineq_gvv = @(x) create_ineq_gvv(x(entries{17}),x(entries{18}),...
         x(entries{1}),x(entries{2}),v0,onoff_pq,Psi_vv0); 
 
     ineq_Psivv = @(x) create_ineq_Psivv(x(entries{19}),x(entries{20}),x(entries{21}),x(entries{22}),x(entries{23}),x(entries{24}),...
-        x(entries{25}(1:Nbranch)),x(entries{25}(4*Nbranch+1:6*Nbranch)),x(entries{26}([1:5*Nbranch,7*Nbranch+1:8*Nbranch])),x(entries{3}),x(entries{4}),...
+        x(entries{25}(1:Nbranch)),x(entries{25}(4*Nbranch+1:5*Nbranch)),x(entries{25}(5*Nbranch+1:6*Nbranch)),...
+        x(entries{26}(1:Nbranch)),x(entries{26}(Nbranch+1:2*Nbranch)),x(entries{26}(2*Nbranch+1:3*Nbranch)),x(entries{26}(3*Nbranch+1:4*Nbranch)),...cos set
+        x(entries{26}(4*Nbranch+1:5*Nbranch)),x(entries{26}(7*Nbranch+1:8*Nbranch)),...sin set
+        x(entries{1}),x(entries{2}),x(entries{3}),x(entries{4}),... v_u/l set
         Psi_vvcos0,Psi_vvsin0,Psi_vv0,Phi0,v0,idx_fr,idx_to);
 
     ineq_inj = @(x)create_ineq_inj(x(entries{9}),x(entries{10}),x(entries{11}),x(entries{12}),...
@@ -192,18 +198,17 @@ function [margin_opt] = cvxr(mpc,mpc_target)
         x(entries{30}(1)),x(entries{30}(2)),x(entries{30}(3)),x(entries{30}(4)),x(entries{30}(5)),...
         Cg,Cl,pg_max,pg_min,qg_max,qg_min,s_line_max);
 
-    ineq_residues = @(x)create_ineq_residues(x(entries{9}),x(entries{10}),x(entries{11}),x(entries{12}),x(entries{13}),...
-        x(entries{14}),x(entries{15}),x(entries{16}),x(entries{17}),x(entries{18}),...
-        x(entries{30}(1)),K_plus,K_minus,xi0,xi_gamma,Phi_max,Phi_min,vmax,vmin);
+    ineq_residues = @(x)create_ineq_residues(x(entries{13}),x(entries{14}),x(entries{15}),x(entries{16}),x(entries{17}),x(entries{18}),...
+        x(entries{30}(1)),K_plus,K_minus,xi0,xi_gamma,Phi_max,Phi_min,vmax,vmin,idx_pq);
 
     ineq_linelimit = @(x)create_ineq_linelimit(x(entries{19}),x(entries{20}),x(entries{21}),x(entries{22}),x(entries{23}),x(entries{24}),...
         x(entries{27}(1:Nbranch)),x(entries{27}(Nbranch+1:2*Nbranch)),x(entries{27}(2*Nbranch+1:3*Nbranch)),x(entries{27}(3*Nbranch+1:4*Nbranch)),...
         M_line_plus,M_line_minus,Nbus);
 
-    g = vertcat(eq_cons,target1,target2,ineq_vv,ineq_cossin,ineq_vvcos_sin,ineq_gvv,ineq_Psivv,ineq_inj,ineq_residues,ineq_linelimit);
+    g = @(x)vertcat(eq_cons(x),eq_target(x),ineq_vv(x),ineq_cossin(x),ineq_vvcos_sin(x),ineq_gvv(x),ineq_Psivv(x),ineq_inj(x),ineq_residues(x),ineq_linelimit(x));
     %% bound on equality/inequality constraints
-    lbg = vertcat(zeros(Ngen+2*Nbus+2*Nbranch+2,1),-inf(4*Nbus+80*Nbranch+4*Ngen+4));
-    ubg = vertcat(zeros(Ngen+2*Nbus+2*Nbranch+2,1),zeros(4*Nbus+80*Nbranch+4*Ngen+4));
+    lbg = vertcat(zeros(4*Ngen+2*Nbus+2*Nbranch+2*Nload,1),-inf(12*Nbus+84*Nbranch+4*Ngen+2*Npq+4,1));
+    ubg = vertcat(zeros(4*Ngen+2*Nbus+2*Nbranch+2*Nload,1),zeros(12*Nbus+84*Nbranch+4*Ngen+2*Npq+4,1));
 
     %% solver options
     import casadi.*
@@ -233,6 +238,11 @@ function [margin_opt] = cvxr(mpc,mpc_target)
     sol = S('x0', x0,'lbg', lbg,'ubg', ubg,...
             'lbx', lbx, 'ubx', ubx);
     xopt= full(sol.x);
-    margin_opt = xopt(end);
+    status = S.stats().return_status;
+    if strcmp(status, 'Solve_Succeeded')
+        margin_opt = xopt(end);
+    else
+        margin_opt = -1;
+    end
 end 
 

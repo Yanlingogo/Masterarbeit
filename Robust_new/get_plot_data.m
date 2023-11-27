@@ -1,4 +1,4 @@
-function [u1_plot,u2_plot,mesh_all,mesh_feasibility,u_base]=plot_FeasibleRegion(mpc,plot_gen,mesh_axis,resolution)
+function [u1_plot,u2_plot,mesh_all,mesh_feasibility,mesh_feas_convex,u_base]=plot_FeasibleRegion(mpc,plot_gen,mesh_axis,resolution)
 limit_mode='vpqla';
 
 %% Compute data for plotting
@@ -34,6 +34,7 @@ u_base=p_base(plot_gen);
 
 mesh_all=cell(1,9); mesh_all(1,:)={0};
 solve_mesh=ones(resolution);
+mesh_feas_convex = ones(resolution);
 V_max_mesh=-ones(resolution,resolution,num_bus);
 V_min_mesh=-ones(resolution,resolution,num_bus);
 Pg_max_mesh=-ones(resolution,resolution,num_gen);
@@ -57,7 +58,6 @@ for i=1:resolution
         mpc_run = mpc;
         mpc_run.gen(plot_gen,2) = u1_plot(i,j)*mpc.baseMVA;
         mpc_run.gen(plot_gen,3) = u2_plot(i,j)*mpc.baseMVA;
-
 %         mpc_run.bus(plot_bus,3)=(Cg(plot_bus(1),:)*pg_base-u1_plot(i,j))*mpc.baseMVA;
 %         mpc_run.bus(plot_bus,3)=u_plot*mpc.baseMVA;
         
@@ -73,6 +73,7 @@ for i=1:resolution
         
         if mpc_run.success==0
             solve_mesh(i,j)=-1;
+            mesh_feas_convex(i,j) = -1;
         else %大于0即表示满足约束
             tol = 1e-5;
             V_max_mesh(i,j,:)=v_max'+tol-vmag_cur';
@@ -84,6 +85,8 @@ for i=1:resolution
             Sline_mesh(i,j,:)=sline_max'+tol-Sline_cur';
             Etheta_max_mesh(i,j,:)=Etheta_max'+tol-Etheta_cur';
             Etheta_min_mesh(i,j,:)=Etheta_cur'-Etheta_min'+tol;
+
+            mesh_feas_convex(i,j) = cvxr(mpc,mpc_run);
         end
     end
 end

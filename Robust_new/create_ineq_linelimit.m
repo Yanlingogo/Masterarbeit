@@ -7,6 +7,6 @@ function [line_cons] = create_ineq_linelimit(Psi_u_vvcos,Psi_l_vvcos,Psi_u_vvsin
         [p_line_fr_u;p_line_to_u;q_line_fr_u;q_line_to_u];%<=0
 
     line_cons = vertcat(line_cons1,line_cons2);
-    %4*Nbranch
+    %8*Nbranch
 end
 

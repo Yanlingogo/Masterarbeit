@@ -51,7 +51,7 @@ function [Y,Yf,Yt,M,M_line] = makeYbus2(mpc,phase_shift)
         Y_diag = E_to*diag(y_tt)*E_to'+E_fr*diag(y_ff)*E_fr'+diag(y_sh);
 
         M = [eye(Nbus), zeros(Nbus), -real(Y_cos), -imag(Y_sin), -real(Y_diag);...
-        zeros(Nbus), eye(Nbus),  imag(Y_cos), -real(Y_sin),  imag(Y_diag)];
+            zeros(Nbus), eye(Nbus),  imag(Y_cos), -real(Y_sin),  imag(Y_diag)];
         M_line=[zeros(Nbranch,2*Nbus)  real(diag(y_ft)) imag(diag(y_ft))  real(diag(y_ff)*E_fr');
                 zeros(Nbranch,2*Nbus)  real(diag(y_tf)) -imag(diag(y_tf))   real(diag(y_tt)*E_to');
                 zeros(Nbranch,2*Nbus) -imag(diag(y_ft)) real(diag(y_ft)) -imag(diag(y_ff)*E_fr');

@@ -15,8 +15,6 @@ function [mpc] = opf_initialization(mpc,restriction_level)
     
     mpc_opf = mpc;
     id_gen = mpc.gen(:,GEN_BUS);
-    Ngen = numel(id_gen);
-    idx_pq = find(mpc.bus(:,BUS_TYPE)==1);
 
     if strcmp(restriction_level, 'uniform')  
         mpc_opf.gencost(:,COST:COST+1) = [1.0, 0.0];
@@ -77,14 +75,12 @@ function [mpc] = opf_initialization(mpc,restriction_level)
     end
     
     mpc.gen(:,VG) = mpc.bus(id_gen,VM);
-    % add participation factor
-    mpc.gen(:,end+1) = zeros(Ngen,1); 
-    mpc.gen(:, end) = (mpc.bus(id_gen, BUS_TYPE) == 3); %define ptc_factor
 
     id_load = find((mpc.bus(:,PD).^2+mpc.bus(:,QD).^2) ~= 0);
-    pl0 = mpc.bus(id_load,PD)/mpc.baseMVA;
-    Sigma0 = diag(pl0.^2);
+    pl0 = mpc.bus(id_load,3)/mpc.baseMVA;
+    ql0 = mpc.bus(id_load,4)/mpc.baseMVA;
+    Sigma0 = diag([pl0.^2;ql0.^2]);
     gamma_0 = 0;
-    mpc.uncertainty.Sigma0 = Sigma0; % Assuming Sigma0 has been previously defined
-    mpc.uncertainty.gamma0 = gamma_0;   % Assuming gamma0 has been previously defined
+    mpc.uncertainty.Sigma = Sigma0; 
+    mpc.uncertainty.gamma0 = gamma_0; 
 end

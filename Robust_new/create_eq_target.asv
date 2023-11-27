@@ -1,0 +1,10 @@
+function [target] = create_eq_target(pg_opt,qg_opt,pl_opt,ql_opt,v_u,mpc,idx_load)
+
+    target1 = pg_opt - mpc.gen(:,2);
+    target2 = qg_opt - mpc.gen(:,3);
+    target3 = pl_opt - mpc.bus(idx_load,3);
+    target4 = ql_opt - mpc.bus(idx_load,4);
+    target5 = v_u(id_gen) - mpc.bus(id_gen)
+
+end
+

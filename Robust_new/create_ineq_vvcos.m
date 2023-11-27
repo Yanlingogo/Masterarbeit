@@ -1,4 +1,4 @@
-function [vvcos_sin] = create_ineq_vvcos(g_u_vvcos,g_l_vvcos,g_u_vvsin,g_l_vvsin,Dvvu_uu,Dvvu_ll,Dvvu_ul,Dvvu_lu,Dvvl_uu,Dvvl_ll,Dvvl_ul,Dvvl_lu,Dcuu,Dcul,Dclu,Dcll,Dsuu,Dsul,Dslu,Dsll, Psi_vvcos0,Psi_vvsin0,Phi0,v0,idx_fr,idx_to)
+function [vvcos_sin] = create_ineq_vvcos(g_u_vvcos,g_l_vvcos,g_u_vvsin,g_l_vvsin,Dvvu_uu,Dvvu_ll,Dvvu_ul,Dvvu_lu,Dvvl_uu,Dvvl_ll,Dvvl_ul,Dvvl_lu,Dcuu,Dcul,Dclu,Dcll,Dsuu,Dsul,Dslu,Dsll,v_u,v_l,Phi_u,Phi_l, Psi_vvcos0,Psi_vvsin0,Phi0,v0,idx_fr,idx_to,onoff_pq)
     %<=0
     % cos1
     g_gcos11 = -g_u_vvcos+(Psi_vvcos0+cos(Phi0).*Dvvu_uu+v0(idx_fr).*v0(idx_to).*Dcuu+1/4*(Dvvu_uu+Dcuu).^2-onoff_pq(idx_fr).*v_u(idx_fr).*v0(idx_to).*cos(Phi0)-v0(idx_fr).*onoff_pq(idx_to).*v_u(idx_to).*cos(Phi0)+v0(idx_fr).*v0(idx_to).*sin(Phi0).*Phi_u);
