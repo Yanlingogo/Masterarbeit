@@ -49,13 +49,15 @@ function [mpc] = runpf_cvxr(mpc)
     vm(id_gen) = gen(:,VG);
     va = bus(:,VA); % Angle value in radian system
     va(slack_bus) = 0;
-    alpha = gen(:,end);
+    alpha_p = gen(:,end-1);
+    alpha_q = gen(:,end);
 
     %redistribution because of the unbalance at slack bus
     v_cpx0 = vm.*cos(va)+1i*(vm.*sin(va));
     S_bal0 = v_cpx0.*conj(Y*v_cpx0)-Sinj;
-    redis_p = Cg*alpha*sum(real(S_bal0));
-    redis_q = Cg*alpha*sum(imag(S_bal0));
+    redis_p = Cg*alpha_p*sum(real(S_bal0));
+    redis_q = Cg*alpha_q*sum(imag(S_bal0));
+
     gen(:,2) = gen(:,2)+redis_p(id_gen)*mpc.baseMVA;
     gen(:,3) = gen(:,3)+redis_q(id_gen)*mpc.baseMVA;
 

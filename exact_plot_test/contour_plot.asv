@@ -41,12 +41,9 @@ u1_x = u1_plot(1,:);u2_y = u2_plot(:,1)';
 % end
 matrix = (mesh_feasibility>=0);
 [minC, maxC, minR, maxR, maxArea] = max_rectangle(matrix);
-P = u1_x([minR,maxR]); Q = u2_y([minC,maxC]);
+P = u1_x(minC,maxC); Q = u2_y(minR,maxR);
 vertex = [P(1),P(1),P(2),P(2);
-          Q(1),Q(2),Q(2),Q(1)];
-rec = fill(vertex(1,:),vertex(2,:),[1, 0.6, 0.6]);
-set(rec, 'FaceAlpha', 0.5);
-
+          Q(1),Q(2),Q(1),Q(2)];
 x_label=xlabel(['$p_{pcc,' num2str(plot_bus) '}$ (p.u.)']); set(x_label, 'Interpreter', 'latex','FontSize',15,'FontName','Times New Roman');
 y_label=ylabel(['$q_{pcc,' num2str(plot_bus) '}$ (p.u.)']); set(y_label, 'Interpreter', 'latex','FontSize',15,'FontName','Times New Roman');
 title(['Feasible Region of Bus ' num2str(plot_bus) ' '],'FontSize',15,'FontName','Times New Roman');

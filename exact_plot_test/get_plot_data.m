@@ -1,4 +1,4 @@
-function [u1_plot,u2_plot,mesh_all,mesh_feasibility,u_base]=plot_FeasibleRegion(mpc,plot_gen,mesh_axis,resolution)
+function [u1_plot,u2_plot,mesh_all,mesh_feasibility,u_base]=get_plot_data(mpc,plot_gen,mesh_axis,resolution)
 limit_mode='vpqla';
 
 %% Compute data for plotting
@@ -74,7 +74,7 @@ for i=1:resolution
         if mpc_run.success==0
             solve_mesh(i,j)=-1;
         else %大于0即表示满足约束
-            tol = 1e-5;
+            tol = 0;
             V_max_mesh(i,j,:)=v_max'+tol-vmag_cur';
             V_min_mesh(i,j,:)=vmag_cur'-v_min'+tol;
             Pg_max_mesh(i,j,:)=pg_max'+tol-Pg_cur';
