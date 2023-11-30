@@ -15,7 +15,7 @@ MU_PMAX, MU_PMIN, MU_QMAX, MU_QMIN, PC1, PC2, QC1MIN, QC1MAX, ...
 QC2MIN, QC2MAX, RAMP_AGC, RAMP_10, RAMP_30, RAMP_Q, APF] = idx_gen;
 % cost idx
 [PW_LINEAR, POLYNOMIAL, MODEL, STARTUP, SHUTDOWN, NCOST, COST] = idx_cost;
-mpc = runpf(case9);
+mpc = runpf(case9); %9 ,39
 %mpc = ext2int(loadcase('case18'));
 mpc = ext2int(mpc);
 % mpc.gen(:,PMAX) = inf;
@@ -33,6 +33,12 @@ Nbus        = size(mpc.bus,1);
 Ngen        = numel(id_gen);
 Nbranch     = size(mpc.branch,1);
 
+% idx
+id_slack =  find(mpc.bus(:,BUS_TYPE) == REF);
+Nslack = numel(id_slack);
+id_gen_nslack = find(id_gen ~= id_slack);
+id_gen_slack = find(id_gen == id_slack);
+
 entries_pf{1} = 1:Nbus;                        % vmag
 entries_pf{2} = (Nbus+1):2*Nbus;               % vang
 entries_pf{3} = (2*Nbus+1):(2*Nbus+Ngen);      % Pg
@@ -42,19 +48,22 @@ baseMVA     = mpc.baseMVA;              % baseMVA
 cost_param  = mpc.gencost(:,5:end);     % objective coefficients
 vmax        = mpc.bus(:,VMAX);                                            
 vmin        = mpc.bus(:,VMIN);
-Pgmin       = mpc.gen(:,PMIN)/baseMVA;
-Qgmin       = mpc.gen(:,QMIN)/baseMVA;
-Pgmax       = mpc.gen(:,PMAX)/baseMVA;
-Qgmax       = mpc.gen(:,QMAX)/baseMVA;
+Phimax      = mpc.branch(:,ANGMAX)/180*pi;
+Phimin      = mpc.branch(:,ANGMIN)/180*pi;
+Pgmin       = mpc.gen(:,PMIN)/baseMVA; %Pgmin(id_gen_slack) = -inf;  
+Qgmin       = mpc.gen(:,QMIN)/baseMVA; %Qgmin(id_gen_slack) = -inf;
+Pgmax       = mpc.gen(:,PMAX)/baseMVA; %Pgmax(id_gen_slack) = inf;
+Qgmax       = mpc.gen(:,QMAX)/baseMVA; %Qgmax(id_gen_slack) = inf;
 Fmax        = mpc.branch(:,RATE_A)/baseMVA;
+
 
 Pd          = mpc.bus(:,PD)/baseMVA;   
 Qd          = mpc.bus(:,QD)/baseMVA;
 Cg          = sparse(id_gen,1:Ngen,ones(Ngen,1),Nbus,Ngen);
 
 %% lower & upper bounds
-lbx         = [vmin;-inf*ones(Nbus,1);Pgmin;Qgmin];       
-ubx         = [vmax; inf*ones(Nbus,1);Pgmax;Qgmax];
+lbx         = [vmin;-pi*ones(Nbus,1);Pgmin;Qgmin];       
+ubx         = [vmax; pi*ones(Nbus,1);Pgmax;Qgmax];
 %% initial state x0
 vang0       = mpc.bus(:,VA)/180*pi;
 vmag0       = mpc.bus(:,VM);
@@ -77,25 +86,26 @@ to_bus         = mpc.branch(:, T_BUS);
 Cf             = sparse(1:Nbranch,from_bus,ones(Nbranch,1),Nbranch,Nbus);
 Ct             = sparse(1:Nbranch,to_bus,ones(Nbranch,1),Nbranch,Nbus);
 C              = Cf - Ct;
-% slack
-id_slack =  find(mpc.bus(:,BUS_TYPE) == REF);
-Nslack = numel(id_slack);
-idx_ref = entries_pf{2}(id_slack);
-eq_ref = @(x)x(idx_ref);
+
+% reference for slack bus
+vmag_ref = entries_pf{1}(id_slack);
+vang_ref = entries_pf{2}(id_slack);
+v_ref    = vertcat(vang_ref);
+eq_ref = @(x)x(v_ref);
+
 % power flow equation
 eq_pf          = @(x)create_local_power_flow_equation_pol(x(entries_pf{1}),x(entries_pf{2}),...
     x(entries_pf{3}),x(entries_pf{4}),Gbus,Bbus,Pd,Qd,Cg);
 test_pf        = eq_pf(x0);
 Npf            = numel(eq_pf(x0));
-% upper & lower bound for voltage magnitude
-ineq_voltage   = @(x) x(entries_pf{1});
-% upper & lower bound for generator 
-ineq_genp      = @(x) x(entries_pf{3}(1:end)); 
-ineq_genq      = @(x) x(entries_pf{4}(1:end));
+
+
+% upper & lower bound for voltage angle
+ineq_angle     = @(x) C*x(entries_pf{2});
+
 % bound between pg_k and qg_k
 alpha = 0.8;  % based on experience
-id_gen_nslack = find(id_gen ~= id_slack);
-id_gen_slack = find(id_gen == id_slack);
+
 %ineq_genpq = @(x)create_bound_PQ(x(entries_pf{3}),x(entries_pf{4}),alpha,id_gen_nslack,id_gen_slack);
 % line Limit
 if any(Fmax)
@@ -104,13 +114,13 @@ if any(Fmax)
     idx_limit = find(Fmax);
     Nlimit = numel(ineq_line(x0));
     %g = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),ineq_line(x),ineq_genpq(x),eq_pf(x),eq_ref(x));
-    g = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),ineq_line(x),eq_pf(x),eq_ref(x)); %without generator bound
+    g = @(x)vertcat(ineq_angle(x),ineq_line(x),eq_pf(x),eq_ref(x)); %without generator bound
 else
     ineq_line = [];
     idx_limit = [];
     Nlimit   = 0;
     %g   = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),ineq_genpq(x),eq_pf(x),eq_ref(x));
-    g   = @(x)vertcat(ineq_voltage(x),ineq_genp(x),ineq_genq(x),eq_pf(x),eq_ref(x));
+    g   = @(x)vertcat(ineq_angle(x),eq_pf(x),eq_ref(x));
 end
 %% linie power flow for PCC 
 % find slack bus and connected bus
@@ -118,15 +128,23 @@ connected_buses = unique([mpc.branch(mpc.branch(:, 1) == id_slack, 2);...
     mpc.branch(mpc.branch(:, 2) == id_slack, 1)]);
 id_cline = find(mpc.branch(:, 1) == id_slack | mpc.branch(:, 2) == id_slack); % connecting line
 % feasible P Q at connecting line
-obj_p = @(x)create_coupling_branch_limit_p(x(entries_pf{1}),...
-     x(entries_pf{2}),id_slack,connected_buses,id_cline, Gf, Bf, Gt, Bt);
-obj_q = @(x)create_coupling_branch_limit_q(x(entries_pf{1}),...
-     x(entries_pf{2}),id_slack,connected_buses,id_cline, Gf, Bf, Gt, Bt);
+% obj_p = @(x)create_coupling_branch_limit_p(x(entries_pf{1}),...
+%      x(entries_pf{2}),id_slack,connected_buses,id_cline, Gf, Bf, Gt, Bt);
+% obj_q = @(x)create_coupling_branch_limit_q(x(entries_pf{1}),...
+%      x(entries_pf{2}),id_slack,connected_buses,id_cline, Gf, Bf, Gt, Bt);
+
+% obj_p = @(x) x(entries_pf{3}(id_gen_slack));
+% obj_q = @(x) x(entries_pf{4}(id_gen_slack));
+
+obj_p = @(x)create_obj_p(x(entries_pf{1}),x(entries_pf{2}),...
+    x(entries_pf{3}),x(entries_pf{4}),Gbus,Bbus,Pd,Qd,Cg,id_slack);
+obj_q = @(x)create_obj_q(x(entries_pf{1}),x(entries_pf{2}),...
+    x(entries_pf{3}),x(entries_pf{4}),Gbus,Bbus,Pd,Qd,Cg,id_slack);
 
 %lbg = vertcat(vmin, Pgmin, Qgmin, -inf*ones(Nlimit+2*Ngen-2*Nslack,1), zeros(Npf+1,1));
-lbg = vertcat(vmin, Pgmin, Qgmin, -inf*ones(Nlimit,1), zeros(Npf+1,1));
+lbg = vertcat(Phimin, -inf*ones(Nlimit,1), zeros(Npf+1,1));
 %ubg = vertcat(vmax, Pgmax, Qgmax, zeros(Npf+Nlimit+2*Ngen+1-2*Nslack,1));
-ubg = vertcat(vmax, Pgmax, Qgmax, zeros(Npf+Nlimit+1,1));
+ubg = vertcat(Phimax, zeros(Npf+Nlimit+1,1));
 % based on eqauation(19): but no line limits,
 %% solver options
 import casadi.*
@@ -170,15 +188,16 @@ for c1 = -1:1
     end
 end
 %% discretization at x-axis
+resolution = 20;
 s_pmin = min(Points(:,1));
 s_pmax = max(Points(:,1));
-s_p_step = linspace(s_pmin,s_pmax,22);
+s_p_step = linspace(s_pmin,s_pmax,resolution+2);
 s_p_step = s_p_step(2:end-1);
 gridding_p= zeros(20,2); % store the solution under gridding
 eq_sp = @(x) obj_p(x);
 g_ext = @(x)vertcat(g(x),eq_sp(x));
 for c3 = [-1, 1]
-    for i = 1:20
+    for i = 1:resolution
         lbg_ext = vertcat(lbg,s_p_step(i));
         ubg_ext = vertcat(ubg,s_p_step(i));
         f_grid = @(x)c3*obj_q(x); % q_{k,l} of PCC
@@ -201,13 +220,13 @@ end
 %% discretization at y-axis
 s_qmin = min(Points(:,2));
 s_qmax = max(Points(:,2));
-s_q_step = linspace(s_qmin,s_qmax,22);
+s_q_step = linspace(s_qmin,s_qmax,resolution+2);
 s_q_step = s_q_step(2:end-1);
 gridding_q= zeros(20,2); % store the solution under gridding
 eq_sq = @(x) obj_q(x);
 g_ext = @(x)vertcat(g(x),eq_sq(x));
 for c3 = [-1, 1]
-    for i = 1:20
+    for i = 1:resolution
         lbg_ext = vertcat(lbg,s_q_step(i));
         ubg_ext = vertcat(ubg,s_q_step(i));
         f_grid = @(x)c3*obj_p(x); % p_{k,l} of PCC
@@ -227,7 +246,7 @@ for c3 = [-1, 1]
         end
     end
 end
-%% output
+%% output 画出的图像中，P/Q > 0 表示向DSO中注入功率
 plot(Points(:,1),Points(:,2),'rx');
 hold on;
 Points_tot = [Points;[s_p_step';s_p_step'],[gridding_p(:,1);gridding_p(:,2)];...
@@ -241,5 +260,6 @@ xlabel('P/p.u.');   % X 轴标签
 ylabel('Q/p.u.');   % Y 轴标签
 title('Feasible Region of Slack Bus'); % 图像标题
 grid on;            % 显示网格
-
+Ei = max_ei(Points);
+fill(Ei(1,:), Ei(2,:), [0.8 1 0.8], 'FaceAlpha', 0.5);
 %% cost plot

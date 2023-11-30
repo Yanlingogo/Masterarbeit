@@ -9,7 +9,7 @@ function [p] = create_coupling_branch_limit_p(v, ang, id_slack,connected_buses,i
 %     pji = W(connected_buses) .* (Gt(id_cline,:)*W + Bt(id_cline,:)*U) +...
 %         U(connected_buses) .* (Gt(id_cline,:)*U - Bt(id_cline,:)*W);
     % detect active line limit - 0 as no line limit
-    p = -pij;
+    p = pij;
     
 end
 
