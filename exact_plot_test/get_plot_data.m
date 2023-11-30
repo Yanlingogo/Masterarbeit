@@ -24,6 +24,7 @@ name2idx=sparse(1,mpc.bus(:,1),1:num_bus);
 idx_fr=name2idx(mpc.branch(:,1))';
 idx_to=name2idx(mpc.branch(:,2))';
 [Ybus, Yf, Yt]=makeYbus(mpc.baseMVA, mpc.bus, mpc.branch);
+idx_sgen = find(mpc.gen(:,1)==plot_gen);%plot 对应节点的编号
 
 Cg = sparse(name2idx(mpc.gen(:,1)), (1:num_gen), ones(num_gen,1), num_bus, num_gen);
 p_base=Cg*pg_base-pl_base;
@@ -55,36 +56,37 @@ for i=1:resolution
 %         mpc_run.bus(plot_bus(2),4) = pf2 * u2_plot(i, j)*mpc.baseMVA;
 
         mpc_run = mpc;
-        mpc_run.gen(plot_gen,2) = u1_plot(i,j)*mpc.baseMVA;
-        mpc_run.gen(plot_gen,3) = u2_plot(i,j)*mpc.baseMVA;
+        mpc_run.gen(idx_gen,2) = u1_plot(i,j)*mpc.baseMVA;
+        mpc_run.gen(idx_gen,3) = u2_plot(i,j)*mpc.baseMVA;
 
 %         mpc_run.bus(plot_bus,3)=(Cg(plot_bus(1),:)*pg_base-u1_plot(i,j))*mpc.baseMVA;
 %         mpc_run.bus(plot_bus,3)=u_plot*mpc.baseMVA;
         
-        mpc_run=runpf_PQ(mpc_run);
+        [mpc_run, margin]=margin_search(mpc_run);
         vmag_cur=mpc_run.bus(:,8);
-        Pg_cur=mpc_run.gen(:,2)/mpc_run.baseMVA;
-        Qg_cur=mpc_run.gen(:,3)/mpc_run.baseMVA;
+        Pg_cur=mpc_run.gen(:,2);
+        Qg_cur=mpc_run.gen(:,3);
         v_cplx=mpc_run.bus(:,8).*exp(1i*mpc_run.bus(:,9));
         
-        Sline_fr=v_cplx(idx_fr).*conj(Yf*v_cplx); Sline_to=v_cplx(idx_to).*conj(Yt*v_cplx);
+        Sline_fr=v_cplx(idx_fr).*conj(Yf*v_cplx); 
+        Sline_to=v_cplx(idx_to).*conj(Yt*v_cplx);
         Sline_cur=max(abs(Sline_fr),abs(Sline_to));
         Etheta_cur=(mpc_run.bus(idx_fr,9)-mpc_run.bus(idx_to,9));
         
-        if mpc_run.success==0
-            solve_mesh(i,j)=-1;
-        else %大于0即表示满足约束
-            tol = 0;
-            V_max_mesh(i,j,:)=v_max'+tol-vmag_cur';
-            V_min_mesh(i,j,:)=vmag_cur'-v_min'+tol;
-            Pg_max_mesh(i,j,:)=pg_max'+tol-Pg_cur';
-            Pg_min_mesh(i,j,:)=Pg_cur'-pg_min'+tol;
-            Qg_max_mesh(i,j,:)=qg_max'+tol-Qg_cur';
-            Qg_min_mesh(i,j,:)=Qg_cur'-qg_min'+tol;
-            Sline_mesh(i,j,:)=sline_max'+tol-Sline_cur';
-            Etheta_max_mesh(i,j,:)=Etheta_max'+tol-Etheta_cur';
-            Etheta_min_mesh(i,j,:)=Etheta_cur'-Etheta_min'+tol;
-        end
+        
+        solve_mesh(i,j)=margin;
+
+        tol = 0;
+        V_max_mesh(i,j,:)=v_max'+tol-vmag_cur';
+        V_min_mesh(i,j,:)=vmag_cur'-v_min'+tol;
+        Pg_max_mesh(i,j,:)=pg_max'+tol-Pg_cur';
+        Pg_min_mesh(i,j,:)=Pg_cur'-pg_min'+tol;
+        Qg_max_mesh(i,j,:)=qg_max'+tol-Qg_cur';
+        Qg_min_mesh(i,j,:)=Qg_cur'-qg_min'+tol;
+        Sline_mesh(i,j,:)=sline_max'+tol-Sline_cur';
+        Etheta_max_mesh(i,j,:)=Etheta_max'+tol-Etheta_cur';
+        Etheta_min_mesh(i,j,:)=Etheta_cur'-Etheta_min'+tol;
+        
     end
 end
 

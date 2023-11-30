@@ -1,3 +1,5 @@
+clear;
+clc;
 mpc = loadcase('case9');
 
 opts = mpoption;
@@ -8,7 +10,7 @@ opts.mips.comptol    = 1e-12;
 opts.opf.ignore_angle_lim = true;
 opts.out.all = 0; 
 
-mpc = runopf(mpc,opts);
+%mpc = runopf(mpc,opts);
 
 idx_slack = find(mpc.bus(:,2)==3);
 idx_sgen = find(mpc.gen(:,1)==idx_slack);
@@ -21,8 +23,8 @@ mpc.gen([idx_sgen,idx_ngen'],end+1) = [0 alpha_q];
 mpc.bus(:,9) = deg2rad(mpc.bus(:,9)); % 角度转弧度
 
 idx_slack = find(mpc.bus(:,2)==3);
-plot_rng = [-1 3 -0.5 1]; %画图范围
-resolution = 100; % 画图分辨率
+plot_rng = [0 3 -1 2]; %画图范围
+resolution = 20; % 画图分辨率
 contour_plot(mpc,idx_slack,plot_rng,resolution);
 
 

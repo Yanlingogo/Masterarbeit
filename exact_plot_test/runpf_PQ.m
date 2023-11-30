@@ -43,7 +43,7 @@ function [mpc] = runpf_cvxr(mpc)
     qinj0 = Cg*qg0 - Cl*ql0;
     Sinj = (pinj0 + 1i * qinj0); % in p.u.
     
-    [Y,Yf,Yt] = makeYbus(mpc);
+    [Y,~,~] = makeYbus(mpc);
 
     vm = bus(:,VM);
     vm(id_gen) = gen(:,VG);
@@ -89,7 +89,7 @@ function [mpc] = runpf_cvxr(mpc)
         nf(iter) = norm(f); 
         ndx(iter) = norm(dx);
         if isnan(nf(iter)) || ((nf(iter)<1e-6)&&(ndx(iter)<1e-6))
-            disp('point converges!');
+            disp('point converges')
             mpc.success = 1;
             break; 
         end 
@@ -104,12 +104,11 @@ function [mpc] = runpf_cvxr(mpc)
     qg_inj = imag(S_inj) - Cl*ql0;
     mpc.gen(:,2) = pg_inj(id_gen)*mpc.baseMVA;
     mpc.gen(:,3) = qg_inj(id_gen)*mpc.baseMVA;
-    mpc.cost = gencost(:,1)'*((pg0)*mpc.baseMVA).^2 + gencost(:,2)'*(pg0)*mpc.baseMVA + sum(gencost(:,3));
+    %mpc.cost = gencost(:,1)'*((pg0)*mpc.baseMVA).^2 + gencost(:,2)'*(pg0)*mpc.baseMVA + sum(gencost(:,3));
 
-    if nf(end)>1e-6
+    if nf(end)>=1e-6
         warning('Newton-Raphson did not converge!');
         mpc.success = 0;
-        mpc.delta = NaN;
     end
 end
 
