@@ -2,7 +2,8 @@ function [q] = create_coupling_branch_limit_q(v, ang, id_slack,connected_buses,i
     % active and reactive power along branch (k,l)
     U = v .* cos(ang);
     W = v .* sin(ang);
-    % from slack bus
+    % from slack bus to all other buses, > 0 means that DSO absorb active
+    % power
     qij = W(id_slack) .* (Gf(id_cline,:)*U - Bf(id_cline,:)*W) -...
         U(id_slack) .* (Gf(id_cline,:)*W + Bf(id_cline,:)*U);
     % to connected bus

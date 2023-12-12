@@ -15,9 +15,9 @@ MU_PMAX, MU_PMIN, MU_QMAX, MU_QMIN, PC1, PC2, QC1MIN, QC1MAX, ...
 QC2MIN, QC2MAX, RAMP_AGC, RAMP_10, RAMP_30, RAMP_Q, APF] = idx_gen;
 % cost idx
 [PW_LINEAR, POLYNOMIAL, MODEL, STARTUP, SHUTDOWN, NCOST, COST] = idx_cost;
-mpc = runpf(case9); %9 ,39
-%mpc = ext2int(loadcase('case18'));
-mpc = ext2int(mpc);
+%mpc = loadcase('case9');
+
+mpc = loadcase('case33_modified');
 % mpc.gen(:,PMAX) = inf;
 % mpc.gen(:,PMIN) = -inf;
 
@@ -90,7 +90,7 @@ C              = Cf - Ct;
 % reference for slack bus
 vmag_ref = entries_pf{1}(id_slack);
 vang_ref = entries_pf{2}(id_slack);
-v_ref    = vertcat(vang_ref);
+v_ref    = vertcat(vang_ref,vmag_ref);
 eq_ref = @(x)x(v_ref);
 
 % power flow equation
@@ -142,9 +142,9 @@ obj_q = @(x)create_obj_q(x(entries_pf{1}),x(entries_pf{2}),...
     x(entries_pf{3}),x(entries_pf{4}),Gbus,Bbus,Pd,Qd,Cg,id_slack);
 
 %lbg = vertcat(vmin, Pgmin, Qgmin, -inf*ones(Nlimit+2*Ngen-2*Nslack,1), zeros(Npf+1,1));
-lbg = vertcat(Phimin, -inf*ones(Nlimit,1), zeros(Npf+1,1));
+lbg = vertcat(Phimin, -inf*ones(Nlimit,1), zeros(Npf+1,1),1);
 %ubg = vertcat(vmax, Pgmax, Qgmax, zeros(Npf+Nlimit+2*Ngen+1-2*Nslack,1));
-ubg = vertcat(Phimax, zeros(Npf+Nlimit+1,1));
+ubg = vertcat(Phimax, zeros(Npf+Nlimit+1,1),1);
 % based on eqauation(19): but no line limits,
 %% solver options
 import casadi.*
@@ -260,6 +260,5 @@ xlabel('P/p.u.');   % X 轴标签
 ylabel('Q/p.u.');   % Y 轴标签
 title('Feasible Region of Slack Bus'); % 图像标题
 grid on;            % 显示网格
-Ei = max_ei(Points);
-fill(Ei(1,:), Ei(2,:), [0.8 1 0.8], 'FaceAlpha', 0.5);
+
 %% cost plot
