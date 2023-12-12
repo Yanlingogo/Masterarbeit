@@ -1,0 +1,9 @@
+function [Q, h] = Boundart_check(b0, beta, gamma, z_b)
+    Numb0 = numel(b0);
+
+    h = sdpvar(Numb0, 1);
+    
+    Cons = [beta' * h == 0]
+
+end
+
