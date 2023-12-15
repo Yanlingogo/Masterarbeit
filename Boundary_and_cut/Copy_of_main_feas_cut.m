@@ -34,7 +34,7 @@ id_gen      = mpc.gen(:,GEN_BUS);
 id_slack    =  find(mpc.bus(:,BUS_TYPE) == REF);
 id_gen_slack  = find(id_gen == id_slack);
 id_gen_nslack = find(id_gen ~= id_slack);
-Ngen_nslack = numel(id_gen_nslack);
+Ngen_ns = numel(id_gen_nslack);
 Nbus        = size(mpc.bus,1);
 Ngen        = numel(id_gen);
 Nbranch     = size(mpc.branch,1);
@@ -47,41 +47,31 @@ to_bus         = mpc.branch(:, T_BUS);
 Cf             = sparse(1:Nbranch,from_bus,ones(Nbranch,1),Nbranch,Nbus);
 Ct             = sparse(1:Nbranch,to_bus,ones(Nbranch,1),Nbranch,Nbus);
 C              = Cf - Ct;
-Cg             = sparse(id_gen,1:Ngen,ones(Ngen,1),Nbus,Ngen);
-Cg_nslack      = Cg(:,id_gen_nslack);
-Cg_slack       = Cg(:,id_gen_slack);
+C_s            = C(1,:);
+C_ns           = C(2:end,:);
 %% Problem formulation
-beta = [eye(Nbus) zeros(Nbus,2*Ngen_nslack+2*Nbranch);
-        -eye(Nbus) zeros(Nbus,2*Ngen_nslack+2*Nbranch);
-        zeros(Ngen_nslack,Nbus) eye(Ngen_nslack) zeros(Ngen_nslack,Ngen_nslack+2*Nbranch);
-        zeros(Ngen_nslack,Nbus) -eye(Ngen_nslack) zeros(Ngen_nslack,Ngen_nslack+2*Nbranch);
-        zeros(Ngen_nslack,Nbus+Ngen_nslack) eye(Ngen_nslack) zeros(Ngen_nslack,2*Nbranch);
-        zeros(Ngen_nslack,Nbus+Ngen_nslack) -eye(Ngen_nslack) zeros(Ngen_nslack,2*Nbranch);
+beta = [eye(Nbus) zeros(Nbus,2*Ngen+2*Nbranch);
+        -eye(Nbus) zeros(Nbus,2*Ngen+2*Nbranch);
+        zeros(Ngen,Nbus) eye(Ngen) zeros(Ngen,Ngen+2*Nbranch);
+        zeros(Ngen,Nbus) -eye(Ngen) zeros(Ngen,Ngen+2*Nbranch);
+        zeros(Ngen,Nbus+Ngen) eye(Ngen) zeros(Ngen,2*Nbranch);
+        zeros(Ngen,Nbus+Ngen) -eye(Ngen) zeros(Ngen,2*Nbranch);
+        C zeros(Nbranch,2*Ngen) diag(-2*branch_r) diag(-2*branch_x);
+        -C zeros(Nbranch,2*Ngen) diag(2*branch_r) diag(2*branch_x);% branch flow equations
+        zeros(Nbus) Cg_nslack zeros(Nbus, Ngen) -C' zeros(Nbus, Nbranch);
+        zeros(Nbus) -Cg_nslack zeros(Nbus, Ngen) C' zeros(Nbus, Nbranch);
+        zeros(Nbus) zeros(Nbus, Ngen) Cg_nslack zeros(Nbus, Nbranch) -C';
+        zeros(Nbus) zeros(Nbus, Ngen) -Cg_nslack zeros(Nbus, Nbranch) C';];
 
-        C zeros(Nbranch,2*Ngen_nslack) diag(-2*branch_r) diag(-2*branch_x);
-        -C zeros(Nbranch,2*Ngen_nslack) diag(2*branch_r) diag(2*branch_x);
-
-        zeros(Nbus) Cg_nslack zeros(Nbus, Ngen_nslack) -C' zeros(Nbus, Nbranch);
-        zeros(Nbus) -Cg_nslack zeros(Nbus, Ngen_nslack) C' zeros(Nbus, Nbranch);
-
-        zeros(Nbus) zeros(Nbus, Ngen_nslack) Cg_nslack zeros(Nbus, Nbranch) -C';
-        zeros(Nbus) zeros(Nbus, Ngen_nslack) -Cg_nslack zeros(Nbus, Nbranch) C';
-
-        zeros(4,Nbus+2*Ngen_nslack+2*Nbranch)];
-
-gamma = [zeros(2*Nbus+4*Ngen_nslack+2*Nbranch,2);
+gamma = [zeros(2*Nbus+4*Ngen+2*Nbranch,2);
          Cg_slack zeros(size(Cg_slack));
          -Cg_slack zeros(size(Cg_slack));
          zeros(size(Cg_slack)) Cg_slack;
-         zeros(size(Cg_slack)) -Cg_slack;
-         1 0; -1 0; 0 1; 0 -1];
-tol_cons = 1e-6;
-b0 = [Umax;-Umin;Pgmax(id_gen_nslack);-Pgmin(id_gen_nslack);
-      Qgmax(id_gen_nslack);-Qgmin(id_gen_nslack);
-      tol_cons*ones(Nbranch,1);tol_cons*ones(Nbranch,1);
-      Pd+tol_cons;-Pd+tol_cons;Qd+tol_cons;-Qd+tol_cons;
-      Pgmax(id_gen_slack);-Pgmin(id_gen_slack);
-      Qgmax(id_gen_slack);-Qgmin(id_gen_slack)];
+         zeros(size(Cg_slack)) -Cg_slack];
+
+b0 = [Umax;-Umin;Pgmax(id_gen_nslack);-Pgmin(id_gen_nslack);...
+      Qgmax(id_gen_nslack);-Qgmin(id_gen_nslack);zeros(2*Nbranch,1);...
+      Pd;-Pd;Qd;-Qd];
 % initilization 
 T = [ 1 0;
      -1 0;
@@ -101,20 +91,20 @@ z_0 = [0.2;0];
 % tolerance
 tol = 1e-3;
 
-% res = 20;
-% z_p = linspace(-0.2,0.8,res);
-% z_q = linspace(-2,1.5,res);
-% mesh = zeros(res);
-% for i = 1:res
-%     for j =1:res
-%         z_B = [z_p(i);z_q(j)];
-%         [mesh(i,j),~] = Boundart_check(b0, beta, gamma, z_B);
-%     end
-% end
+res = 20;
+z_p = linspace(-0.2,0.8,res);
+z_q = linspace(-2,1.5,res);
+mesh = zeros(res);
+for i = 1:res
+    for j =1:res
+        z_B = [z_p(i);z_q(j)];
+        [mesh(i,j),~] = Boundart_check(b0, beta, gamma, z_B);
+    end
+end
 
 
 K = 1; K_2 = 0;
-while K > 0
+while K >= 1e-16
     [K, z_s] = Boundary_search(b0, T, v, gamma, beta, M);
 
     lambda_l = 0;
@@ -123,7 +113,7 @@ while K > 0
     if K <= 1e-16
         break;
     else
-        while ~(lambda_u - lambda_l <= tol && K_2 >= 1e-16)
+        while ~(lambda_u - lambda_l <= tol && K_2 >= 1e-8)
             lambda = 0.5*(lambda_l + lambda_u);
             z_B = lambda*z_s + (1-lambda)*z_0;
             [K_2, h_s] = Boundart_check(b0, beta, gamma, z_B);

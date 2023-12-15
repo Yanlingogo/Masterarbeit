@@ -4,11 +4,11 @@ function [Q, h_s] = Boundart_check(b0, beta, gamma, z_b)
     h = sdpvar(Numb0, 1);
     
     Cons = [beta' * h == 0];
-    Cons = [Cons, h >= -1, h <= 0];
+    Cons = [Cons, h>= -1, h <= 0];
 
     Obj = -(h' * (b0 - gamma * z_b));
     
-    options = sdpsettings('solver', 'gurobi','gurobi.FeasibilityTol', 1e-6);
+    options = sdpsettings('solver', 'gurobi','gurobi.FeasibilityTol', 1e-8);
     sol = optimize(Cons, Obj, options);
 
     h_s = value(h);
