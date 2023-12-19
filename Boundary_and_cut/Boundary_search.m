@@ -5,7 +5,8 @@ function [Q, z_s] = Boundary_search(b0, T, v, gamma, beta, M)
     lambda = sdpvar(Numb0,1);
     mu = sdpvar(Numv,1);
     delta = binvar(Numv,1);
-    z = sdpvar(2,1);
+    [~, T_y] = size(T);
+    z = sdpvar(T_y,1);
         
     Cons = [T' * mu + gamma' * lambda == 0];
     Cons = [Cons, beta' * lambda == 0];
