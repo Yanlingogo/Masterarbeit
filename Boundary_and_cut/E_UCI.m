@@ -17,7 +17,8 @@ function [A_u, b_u] = E_UCI(A, b)
     while flag == 0
         Cons = [Cons, beta(idx) == 1];
         Obj = sum(beta);
-        options = sdpsettings('solver', 'gurobi','gurobi.FeasibilityTol', 1e-8);
+        %options = sdpsettings('verbose', 0, 'solver', 'gurobi', 'gurobi.DisplayInterval', 0);
+        options = sdpsettings('verbose', 0,'solver','gurobi');
         sol = optimize(Cons, Obj, options);
 
         beta_value = value(beta);
@@ -32,5 +33,6 @@ function [A_u, b_u] = E_UCI(A, b)
     end
   A_u = A(idx,:);
   b_u = b(idx,:);
+  disp(['The original number of constraints: ', num2str(Numb0),', Number of compressed model constraints: ',num2str(numel(idx))]);
 end
 

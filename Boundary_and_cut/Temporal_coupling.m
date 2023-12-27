@@ -19,8 +19,8 @@ QC2MIN, QC2MAX, RAMP_AGC, RAMP_10, RAMP_30, RAMP_Q, APF] = idx_gen;
 
 mpc = ext2int(loadcase('case33_modified'));
 mpc = ext2int(mpc);
-% load('Pd2_test.mat');
-% load("Qd2_test.mat");
+load('Pd2_test.mat');
+load("Qd2_test.mat");
 %% parameters
 baseMVA     = mpc.baseMVA;
 baseKV      = mpc.bus(1,BASE_KV);
@@ -30,9 +30,9 @@ Pgmin       = mpc.gen(:,PMIN)/baseMVA;
 Qgmin       = mpc.gen(:,QMIN)/baseMVA; 
 Pgmax       = mpc.gen(:,PMAX)/baseMVA; 
 Qgmax       = mpc.gen(:,QMAX)/baseMVA; 
-Pramp       = [1;1;1];
-Pd          = mpc.bus(:,PD)/baseMVA; Pd = repmat(Pd,1,6);%Pd=[Pd Pd2];
-Qd          = mpc.bus(:,QD)/baseMVA; Qd = repmat(Qd,1,6);%Qd=[Qd Qd2];
+Pramp       = [1;0.1;0.1];
+Pd          = mpc.bus(:,PD)/baseMVA; Pd=[Pd Pd2];%Pd = repmat(Pd,1,6);
+Qd          = mpc.bus(:,QD)/baseMVA; Qd=[Qd Qd2];%Qd = repmat(Qd,1,6);
 
 id_gen      = mpc.gen(:,GEN_BUS);
 id_slack    =  find(mpc.bus(:,BUS_TYPE) == REF);
@@ -112,7 +112,7 @@ b0_Q_l = -repmat(Qgmin,T,1);
 % ramp rate
 b0_ramp = repmat(Pramp,2*(T-1),1);
 % power flow equation
-tol_cons = 0;
+tol_cons = 1e-6;
 b0_inj = tol_cons*ones(2*Nbranch*T,1);
 Pd = Pd(:);
 Qd = Qd(:);
@@ -120,106 +120,109 @@ b0_pf = vertcat(Pd+tol_cons,-Pd+tol_cons,Qd+tol_cons,-Qd+tol_cons);
 
 b0 = vertcat(b0_U_u,b0_U_l,b0_P_u,b0_P_l,b0_Q_u,b0_Q_l,b0_ramp,b0_inj,b0_pf);
 %% condense model with umbrella constraints
-[A_u, b_u] = E_UCI(A, b0);
-% parameters for projection varaibles
-idx_pqs = linspace(1, 1+Ngen*(T-1),T);
-B = A_u(:, [Nbus*T+idx_pqs Nbus*T+Ngen*T+idx_pqs]);
-% B_p = A_u(:, Nbus*T+idx_pqs);
-% B_q = A_u(:, Nbus*T+Ngen*T+idx_pqs);
-remainingIndices = setdiff(1:size(A_u,2), [Nbus*T+idx_pqs Nbus*T+Ngen*T+idx_pqs]);
-A_de = A_u(:, remainingIndices);
-
-
-% initilization 
-D0 = [ eye(T) zeros(T);
-     -eye(T) zeros(T);
-      zeros(T) eye(T);
-      zeros(T) -eye(T);];
-v = [Pgmax(id_gen_slack)*ones(T,1);
-     -Pgmin(id_gen_slack)*ones(T,1);
-     Qgmax(id_gen_slack)*ones(T,1);
-     -Qgmin(id_gen_slack)*ones(T,1)];
-
-%M = 10*sum(Pd);
-M = 80;
-P_half = 0.5*(2*sum(Pd)-sum(Pgmin(id_gen_nslack))-sum(Pgmax(id_gen_nslack)));
-Q_half = 0.5*(2*sum(Qd)-sum(Qgmin(id_gen_nslack))-sum(Qgmax(id_gen_nslack)));
-%z_0 = [P_half;Q_half];
-z_0 = [0.2*ones(T,1);zeros(T,1)];
-% tolerance
-tol = 1e-3;
-
-% res = 20;
-% z_p = linspace(-0.2,0.8,res);
-% z_q = linspace(-2,1.5,res);
-% mesh = zeros(res);
-% for i = 1:res
-%     for j =1:res
-%         z_B = [z_p(i);z_q(j)];
-%         [mesh(i,j),~] = Boundart_check(b0, beta, gamma, z_B);
-%     end
-% end
-
-
-K = 1; K_2 = 0;
-while K ~= 0
-    [K, z_s] = Boundary_search(b_u, D0, v, B, A_de, M);
-
-    lambda_l = 0;
-    lambda_u = 1;
-    lambda = 0.5*(lambda_l + lambda_u);
-    if K <= 1e-16
-        break;
-    else
-        while ~(lambda_u - lambda_l <= tol && K_2 > 0)
-            lambda = 0.5*(lambda_l + lambda_u);
-            z_B = lambda*z_s + (1-lambda)*z_0;
-            [K_2, h_s] = Boundart_check(b_u, A_de, B, z_B);
-            if K_2 == 0
-                lambda_l = lambda;
-            else 
-                lambda_u = lambda;
+%[A_u, b_u] = E_UCI(A, b0);
+A_u = A;
+b_u = b0;
+%% find the feasible region
+D_all = cell(1,T);
+v_all = cell(1,T);
+for i = 1:T
+    idx_pqs = [1+Ngen*(i-1) 1+Ngen*(i-1)+Ngen*T];
+    B = A_u(:,Nbus*T+idx_pqs);
+    remainingIndices = setdiff(1:size(A_u,2), Nbus*T+idx_pqs);
+    A_de = A_u(:, remainingIndices);
+    % generate a large enough space
+    D0 = [ 1 0;
+     -1 0;
+      0 1;
+      0 -1;];
+    v = [Pgmax(id_gen_slack);
+         -Pgmin(id_gen_slack);
+         Qgmax(id_gen_slack);
+         -Qgmin(id_gen_slack)];
+    % parameter for M-method
+    M = 80;
+    % set a point within the real polytope
+    z_0 = [0.2;0];
+    % tolerance
+    tol = 1e-3;
+    % find the boundary for each time set
+    K = 1; K_2 = 0;
+    while K ~= 0
+        [K, z_s] = Boundary_search(b_u, D0, v, B, A_de, M);
+        disp(['Exceeding the constraints: K = ', num2str(K)]);
+        lambda_l = 0;
+        lambda_u = 1;
+        lambda = 0.5*(lambda_l + lambda_u);
+        if K <= 5e-6
+            break;
+        else
+            while ~(lambda_u - lambda_l <= tol && K_2 > 0)
+                lambda = 0.5*(lambda_l + lambda_u);
+                z_B = lambda*z_s + (1-lambda)*z_0;
+                [K_2, h_s] = Boundart_check(b_u, A_de, B, z_B);
+                if K_2 == 0
+                    lambda_l = lambda;
+                else 
+                    lambda_u = lambda;
+                end
             end
+            D0 = [D0;-(h_s'*B)];
+            v = [v;-(h_s'*b_u)];
         end
-        D0 = [D0;-(h_s'*B)];
-        v = [v;-(h_s'*b_u)];
     end
+    D_all{i} = D0;
+    v_all{i} = v;
+end
+%% get the intersection of all linear equations
+intersections = cell(1,T);
+for i = 1:T
+    [D_all{i}, v_all{i}] = E_UCI(D_all{i},v_all{i});
+    intersections{i} = intersection(D_all{i}, v_all{i});
 end
 
-% 设置 x 轴和 y 轴的范围
-x = linspace(-0.2, 0.7, 400);
-y = linspace(-1.2, 1.2, 400);
-[X, Y] = meshgrid(x, y);
+figure;
 
-% 初始化绘图
-fig=figure; box on; hold all; set(fig, 'Position', [100, 100, 850, 650]);
+% 设置颜色地图，以便每个多边形有不同的颜色
+colors = jet(length(intersections)); % 'jet' 是 MATLAB 的一个颜色地图
 
-% 设置坐标轴范围和网格线间隔
-xlim([-0.2, 0.7]);
-ylim([-1.2, 1.2]);
-xticks(-0.2:0.1:0.7);
-yticks(-1.2:0.5:1.2);
+% 循环通过每个 cell 绘制多边形
+for i = 1:length(intersections)
+    % 获取当前 cell 的坐标点
+    xy = (intersections{i})';
+    centroid = mean(xy, 1);
+    angles = atan2(xy(:,2) - centroid(2), xy(:,1) - centroid(1));
+    [~, order] = sort(angles);
+    sortedPoints = xy(order, :);
+    % 假设 xy 是一个 n x 2 的矩阵，其中第一列是 x 坐标，第二列是 y 坐标
+    x = sortedPoints(:, 1);
+    y = sortedPoints(:, 2);
+    
+    % 在三维空间中添加多边形。Z 坐标由 i 控制，以将它们堆叠起来
+    z = ones(size(x)) * i;
+    patch(z, x, y, colors(i, :), 'EdgeColor', 'none');
+    
+    % 可以选择添加一些透明度
+    alpha(0.5);
+
+    hold on; % 保持当前图形，以便在上面绘制
+    plot3(z, x, y, 'o', 'MarkerEdgeColor', 'k', 'MarkerFaceColor', colors(i, :));
+end
+
+% 调整视角
+ylim([-0.2 0.7]);
+zlim([-1.2 1.2]);
+
+set(gca, 'YDir','reverse')
+view(3);
+
+% 添加轴标签
+xlabel('T(time period)');
+ylabel('P(Mvar)');
+zlabel('Q(Mvar)');
+title('Feasible region with temporal coupling');
+
+% 优化图形显示
 grid on;
-
-% 绘制每个不等式定义的线
-for i = 1:size(T,1)
-    if T(i,1) == 0
-        line(xlim, [v(i)/T(i,2) v(i)/T(i,2)], 'Color', 'r');
-    elseif T(i,2) == 0
-        line([v(i)/T(i,1) v(i)/T(i,1)], ylim, 'Color', 'r');
-    else
-        plot(x, (v(i) - T(i,1)*x)/T(i,2), 'r');
-    end
-end
-
-% 检查每个点是否满足所有不等式
-inside = all((A * [X(:), Y(:)]' <= b)');
-
-% 绘制可行区域
-fill(X(inside), Y(inside), 'g', 'FaceAlpha', 0.3);
-
-% 设置坐标轴标签和标题
-xlabel('x');
-ylabel('y');
-title('Linear Inequality Constraints');
-hold off;
+%axis tight;
+rotate3d on; % 允许使用鼠标旋转视图
